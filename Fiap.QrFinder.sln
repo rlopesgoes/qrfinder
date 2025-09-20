@@ -1,7 +1,5 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Fiap.QrFinder", "Fiap.QrFinder\Fiap.QrFinder.csproj", "{9689084B-8A1A-46C2-B33B-9CDF30BB5896}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{40675F27-047E-4026-A5F4-C3B9262D97E5}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{133DE9FC-A1CC-4088-80F9-658D09836CD2}"
@@ -28,10 +26,6 @@ Global
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{9689084B-8A1A-46C2-B33B-9CDF30BB5896}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{9689084B-8A1A-46C2-B33B-9CDF30BB5896}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{9689084B-8A1A-46C2-B33B-9CDF30BB5896}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{9689084B-8A1A-46C2-B33B-9CDF30BB5896}.Release|Any CPU.Build.0 = Release|Any CPU
 		{22737281-AD08-47CD-9800-E99F2F80DBB9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{22737281-AD08-47CD-9800-E99F2F80DBB9}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{22737281-AD08-47CD-9800-E99F2F80DBB9}.Release|Any CPU.ActiveCfg = Release|Any CPU

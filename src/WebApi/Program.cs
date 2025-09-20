@@ -2,66 +2,59 @@ using DotNetEnv;
 using Application;
 using Application.Queries;
 using MediatR;
+using WebApi;
 
-namespace WebApi;
+Env.TraversePath().Load();
+        
+var builder = WebApplication.CreateBuilder(args);
 
-public class Program
+// Add services to the container.
+builder.Services.AddAuthorization();
+        
+// Add MediatR
+builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AssemblyReference).Assembly));
+
+// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+var app = builder.Build();
+
+// Configure the HTTP request pipeline.
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.UseHttpsRedirection();
+
+app.UseAuthorization();
+
+var summaries = new[]
 {
-    public static void Main(string[] args)
+    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
+};
+
+app.MapGet("/weatherforecast", (HttpContext httpContext) =>
     {
-        DotNetEnv.Env.TraversePath().Load();
-        
-        var builder = WebApplication.CreateBuilder(args);
+        var forecast = Enumerable.Range(1, 5).Select(index =>
+                new WeatherForecast
+                {
+                    Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
+                    TemperatureC = Random.Shared.Next(-20, 55),
+                    Summary = summaries[Random.Shared.Next(summaries.Length)]
+                })
+            .ToArray();
+        return forecast;
+    })
+    .WithName("GetWeatherForecast")
+    .WithOpenApi();
 
-        // Add services to the container.
-        builder.Services.AddAuthorization();
-        
-        // Add MediatR
-        builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Application.AssemblyReference).Assembly));
+app.MapGet("/test", async (IMediator mediator, string? message) =>
+    {
+        var query = new TestQuery(message ?? "Hello from MediatR!");
+        var result = await mediator.Send(query);
+        return Results.Ok(result);
+    })
+    .WithName("TestMediatR")
+    .WithOpenApi();
 
-        // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
-
-        var app = builder.Build();
-
-        // Configure the HTTP request pipeline.
-        app.UseSwagger();
-        app.UseSwaggerUI();
-
-        app.UseHttpsRedirection();
-
-        app.UseAuthorization();
-
-        var summaries = new[]
-        {
-            "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-        };
-
-        app.MapGet("/weatherforecast", (HttpContext httpContext) =>
-            {
-                var forecast = Enumerable.Range(1, 5).Select(index =>
-                        new WeatherForecast
-                        {
-                            Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                            TemperatureC = Random.Shared.Next(-20, 55),
-                            Summary = summaries[Random.Shared.Next(summaries.Length)]
-                        })
-                    .ToArray();
-                return forecast;
-            })
-            .WithName("GetWeatherForecast")
-            .WithOpenApi();
-
-        app.MapGet("/test", async (IMediator mediator, string? message) =>
-            {
-                var query = new TestQuery(message ?? "Hello from MediatR!");
-                var result = await mediator.Send(query);
-                return Results.Ok(result);
-            })
-            .WithName("TestMediatR")
-            .WithOpenApi();
-
-        app.Run();
-    }
-}
+app.Run();

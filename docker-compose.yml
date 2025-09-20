@@ -23,8 +23,8 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:5000
-      - ConnectionStrings__MongoDB=mongodb://mongo:27017/qrfinder
-      - Kafka__BootstrapServers=kafka:9092
+      - MONGODB_CONNECTION_STRING=mongodb://mongo:27017/qrfinder
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     depends_on:
       - mongo
       - kafka
@@ -37,8 +37,8 @@ services:
       dockerfile: src/Worker/Dockerfile
     container_name: qrfinder-worker
     environment:
-      - ConnectionStrings__MongoDB=mongodb://mongo:27017/qrfinder
-      - Kafka__BootstrapServers=kafka:9092
+      - MONGODB_CONNECTION_STRING=mongodb://mongo:27017/qrfinder
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     depends_on:
       - mongo
       - kafka
@@ -65,11 +65,11 @@ services:
     ports:
       - "5005:8081"
     environment:
-      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
-      ME_CONFIG_MONGODB_ADMINPASSWORD: password123
-      ME_CONFIG_MONGODB_URL: mongodb://admin:password123@mongo:27017/
-      ME_CONFIG_BASICAUTH_USERNAME: admin
-      ME_CONFIG_BASICAUTH_PASSWORD: admin123
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=password123
+      - ME_CONFIG_MONGODB_URL=mongodb://admin:password123@mongo:27017/
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=admin123
     depends_on:
       - mongo
     networks:

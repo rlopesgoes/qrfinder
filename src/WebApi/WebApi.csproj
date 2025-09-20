@@ -9,12 +9,17 @@
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.17"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2"/>
+        <PackageReference Include="DotNetEnv" Version="3.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
       <ProjectReference Include="..\Application\Application\Application.csproj" />
       <ProjectReference Include="..\Contracts\Contracts.csproj" />
       <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Include="..\..\.env" CopyToOutputDirectory="PreserveNewest" />
     </ItemGroup>
 
 </Project>

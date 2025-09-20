@@ -1,9 +1,13 @@
+using DotNetEnv;
+
 namespace WebApi;
 
 public class Program
 {
     public static void Main(string[] args)
     {
+        DotNetEnv.Env.TraversePath().Load();
+        
         var builder = WebApplication.CreateBuilder(args);
 
         // Add services to the container.

@@ -1,0 +1,26 @@
+﻿version: '3.8'
+
+services:
+  qrfinder:
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Production
+    volumes:
+      - qrfinder_data:/app/uploads
+    # Health check to ensure the service is running properly
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Restart policy to ensure the service stays up
+    restart: unless-stopped
+
+volumes:
+  qrfinder_data:

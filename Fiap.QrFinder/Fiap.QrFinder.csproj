@@ -4,11 +4,22 @@
         <TargetFramework>net8.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.16"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2"/>
+        <PackageReference Include="FFMpegCore" Version="5.1.0" />
+        <PackageReference Include="ZXing.Net" Version="0.16.9" />
+        <PackageReference Include="ZXing.Net.Bindings.Windows.Compatibility" Version="0.16.12" />
+        <PackageReference Include="System.Drawing.Common" Version="8.0.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Content Include="..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>

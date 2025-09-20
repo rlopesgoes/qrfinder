@@ -1,4 +1,7 @@
 using DotNetEnv;
+using Application;
+using Application.Queries;
+using MediatR;
 
 namespace WebApi;
 
@@ -12,6 +15,9 @@ public class Program
 
         // Add services to the container.
         builder.Services.AddAuthorization();
+        
+        // Add MediatR
+        builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(Application.AssemblyReference).Assembly));
 
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         builder.Services.AddEndpointsApiExplorer();
@@ -45,6 +51,15 @@ public class Program
                 return forecast;
             })
             .WithName("GetWeatherForecast")
+            .WithOpenApi();
+
+        app.MapGet("/test", async (IMediator mediator, string? message) =>
+            {
+                var query = new TestQuery(message ?? "Hello from MediatR!");
+                var result = await mediator.Send(query);
+                return Results.Ok(result);
+            })
+            .WithName("TestMediatR")
             .WithOpenApi();
 
         app.Run();

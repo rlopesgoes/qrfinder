@@ -3,6 +3,7 @@ using Application;
 using Application.Queries;
 using MediatR;
 using WebApi;
+using WebApi.Endpoints;
 
 Env.TraversePath().Load();
         
@@ -28,33 +29,6 @@ app.UseHttpsRedirection();
 
 app.UseAuthorization();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
-
-app.MapGet("/weatherforecast", (HttpContext httpContext) =>
-    {
-        var forecast = Enumerable.Range(1, 5).Select(index =>
-                new WeatherForecast
-                {
-                    Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-                    TemperatureC = Random.Shared.Next(-20, 55),
-                    Summary = summaries[Random.Shared.Next(summaries.Length)]
-                })
-            .ToArray();
-        return forecast;
-    })
-    .WithName("GetWeatherForecast")
-    .WithOpenApi();
-
-app.MapGet("/test", async (IMediator mediator, string? message) =>
-    {
-        var query = new TestQuery(message ?? "Hello from MediatR!");
-        var result = await mediator.Send(query);
-        return Results.Ok(result);
-    })
-    .WithName("TestMediatR")
-    .WithOpenApi();
+app.MapVideosEndpoints();
 
 app.Run();

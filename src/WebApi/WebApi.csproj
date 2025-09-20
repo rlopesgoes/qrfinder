@@ -20,6 +20,7 @@
 
     <ItemGroup>
       <None Include="..\..\.env" CopyToOutputDirectory="PreserveNewest" />
+      <None Remove="Properties\launchSettings.json" />
     </ItemGroup>
 
 </Project>

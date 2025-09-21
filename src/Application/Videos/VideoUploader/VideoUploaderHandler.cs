@@ -34,7 +34,7 @@ public class VideoUploaderHandler(
 
         public async Task OnCompletedAsync(string id, long lastSeq, long received, long total, CancellationToken cancellationToken)
         {
-            var status = new UploadStatus(id, UploadStage.Uploading, lastSeq, received, total, DateTime.UtcNow);
+            var status = new UploadStatus(id, UploadStage.Uploaded, lastSeq, received, total, DateTime.UtcNow);
             await videoStatusRepository.UpsertAsync(status, cancellationToken);
             await progressNotifier.NotifyCompletedAsync(id, lastSeq, received, total, cancellationToken);
         }

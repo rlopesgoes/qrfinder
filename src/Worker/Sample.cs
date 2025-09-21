@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
+using Application.Videos.Data;
+using Application.Videos.Data.Dto;
 using Confluent.Kafka;
+using Domain;
 using ZXing;
 using ZXing.SkiaSharp;
 using SkiaSharp;
@@ -9,7 +12,8 @@ namespace Worker;
 
 public class Sample(
     IConsumer<string, byte[]> consumer,
-    IProducer<string, byte[]> producer)
+    IProducer<string, byte[]> producer,
+    IVideoStatusRepository videoStatusRepository)
     : BackgroundService
 {
     private string topicChunks = "videos.raw-chunks";
@@ -39,6 +43,10 @@ public class Sample(
 
                 var topic = cr.Topic;
                 var videoId = cr.Message.Key!;
+
+
+                await videoStatusRepository.UpsertAsync(new UploadStatus(videoId, UploadStage.Processing), stoppingToken);
+                
                 if (topic == topicChunks)
                 {
                     await AppendChunkAsync(videoId, cr.Message.Value, stoppingToken);
@@ -113,6 +121,8 @@ public class Sample(
                 new Message<string, byte[]> { Key = videoId, Value = payload }, ct);
             
             Console.WriteLine($"[Results] {videoId} -> {detections.Count} códigos");
+            
+            await videoStatusRepository.UpsertAsync(new UploadStatus(videoId, UploadStage.Processed), ct);
 
             // limpeza
             TryDelete(fin);

@@ -22,17 +22,26 @@ public sealed class VideoStatusRepository(IMongoDatabase db) : IVideoStatusRepos
 
     private IMongoCollection<UploadStatusDto> Collection => db.GetCollection<UploadStatusDto>(VideoStatusCollection);
 
-    public Task UpsertAsync(UploadStatus uploadStatus, CancellationToken cancellationToken)
-        => Collection.UpdateOneAsync(x => x.VideoId == uploadStatus.VideoId,
-            Builders<UploadStatusDto>.Update
-                .SetOnInsert(x => x.VideoId, uploadStatus.VideoId)
-                .Set(x => x.Stage, uploadStatus.Stage)
-                .Set(x => x.LastSeq, uploadStatus.LastSeq)
-                .Set(x => x.ReceivedBytes, uploadStatus.ReceivedBytes)
-                .Set(x => x.TotalBytes, uploadStatus.TotalBytes)
-                .Set(x => x.UpdatedAtUtc, DateTime.UtcNow),
-            new UpdateOptions { IsUpsert = true }, cancellationToken);
-
+    public async Task UpsertAsync(UploadStatus uploadStatus, CancellationToken cancellationToken)
+    {
+        var builder = Builders<UploadStatusDto>.Update
+            .SetOnInsert(x => x.VideoId, uploadStatus.VideoId)
+            .Set(x => x.Stage, uploadStatus.Stage)
+            .Set(x => x.UpdatedAtUtc, DateTime.UtcNow);
+        
+        if (uploadStatus.LastSeq is not null)
+            builder = builder.Set(x => x.LastSeq, uploadStatus.LastSeq);
+        
+        if (uploadStatus.ReceivedBytes is not null)
+            builder = builder.Set(x => x.ReceivedBytes, uploadStatus.ReceivedBytes);
+        
+        if (uploadStatus.TotalBytes is not null)
+            builder = builder.Set(x => x.TotalBytes, uploadStatus.TotalBytes);
+        
+        await Collection.UpdateOneAsync(x => x.VideoId == uploadStatus.VideoId,
+            builder, new UpdateOptions { IsUpsert = true }, cancellationToken);
+    }
+    
     public async Task<UploadStatus?> GetAsync(string videoId, CancellationToken cancellationToken)
     {
         var uploadVideoStatus = await Collection.Find(x => x.VideoId == videoId).FirstOrDefaultAsync(cancellationToken);

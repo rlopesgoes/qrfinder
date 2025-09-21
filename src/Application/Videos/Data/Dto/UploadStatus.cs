@@ -5,7 +5,7 @@ namespace Application.Videos.Data.Dto;
 public sealed record UploadStatus(
     string VideoId, 
     UploadStage Stage,
-    long LastSeq, 
-    long ReceivedBytes, 
-    long TotalBytes,
-    DateTime UpdatedAtUtc);
+    long? LastSeq = null, 
+    long? ReceivedBytes = null, 
+    long? TotalBytes = null,
+    DateTime? UpdatedAtUtc = null);

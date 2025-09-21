@@ -22,7 +22,7 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
         BootstrapServers = bootstrap,
         GroupId = groupId,
         EnableAutoCommit = false,
-        AutoOffsetReset = AutoOffsetReset.Earliest,
+        AutoOffsetReset = AutoOffsetReset.Latest,
         PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
     };
     return new ConsumerBuilder<string, byte[]>(conf).Build();

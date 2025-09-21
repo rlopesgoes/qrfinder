@@ -2,7 +2,7 @@
 using SignalRClient;
 
 var hubUrl = "http://localhost:5010/hubs/upload";
-var rawId = args.Length > 0 ? args[0] : "35578a7c8d074ef19d05e66476daf66f";
+var rawId = args.Length > 0 ? args[0] : "187e0220476541acb9fdd71e62fd00ec";
 
 var videoId = rawId.Trim().ToLowerInvariant();
 

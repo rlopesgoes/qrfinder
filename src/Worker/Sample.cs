@@ -296,13 +296,22 @@ public class Sample(
             });
     
         Console.WriteLine($"[Final] Total de QR codes detectados: {results.Count}");
-        foreach (var (text, time) in results)
+        
+        // Remove duplicatas: mantém apenas a primeira ocorrência de cada QR code
+        var uniqueResults = results
+            .GroupBy(r => r.Item1) // Agrupa por texto do QR
+            .Select(g => g.OrderBy(r => r.Item2).First()) // Pega o primeiro de cada grupo (menor timestamp)
+            .OrderBy(r => r.Item2) // Ordena por timestamp
+            .ToList();
+            
+        Console.WriteLine($"[Final] QR codes únicos: {uniqueResults.Count}");
+        foreach (var (text, time) in uniqueResults)
         {
-            Console.WriteLine($"[Final] QR: '{text}' em {time:F2}s");
+            Console.WriteLine($"[Final] QR único: '{text}' em {time:F3}s");
         }
         
         try { Directory.Delete(dir, true); } catch { /* ignore */ }
-        return results;
+        return uniqueResults;
     }
 
     private static async Task Run(string exe, string args, CancellationToken ct)

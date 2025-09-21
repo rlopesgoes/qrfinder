@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UserSecretsId>dotnet-Worker-7e5a068f-58d0-42fe-b01c-f8296d5a6405</UserSecretsId>
+    <RootNamespace>Worker</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>

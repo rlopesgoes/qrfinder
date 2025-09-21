@@ -30,8 +30,8 @@ public class Sample(
         
         consumer.Subscribe(new[] { topicChunks, topicControl });
 
-        Console.WriteLine($"[Worker] Subscribed to: {topicChunks}, {topicControl}. Results -> {topicResults}");
-        //Console.WriteLine($"[Worker] Dir: {dir}");
+        Console.WriteLine($"[ProcessWorker] Subscribed to: {topicChunks}, {topicControl}. Results -> {topicResults}");
+        //Console.WriteLine($"[ProcessWorker] Dir: {dir}");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -61,7 +61,7 @@ public class Sample(
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                Console.WriteLine($"[Worker] erro: {ex.Message}");
+                Console.WriteLine($"[ProcessWorker] erro: {ex.Message}");
                 await Task.Delay(50, stoppingToken);
             }
         }

@@ -33,12 +33,12 @@ public sealed class VideoStatusRepository(IMongoDatabase db) : IVideoStatusRepos
                 .Set(x => x.UpdatedAtUtc, DateTime.UtcNow),
             new UpdateOptions { IsUpsert = true }, cancellationToken);
 
-    public async Task<UploadStatus?> GetLastSeqAsync(string id, CancellationToken ct)
+    public async Task<UploadStatus?> GetLastSeqAsync(string videoId, CancellationToken ct)
     {
-        var uploadVideoStatus = await Collection.Find(x => x.VideoId == id).FirstOrDefaultAsync(ct);
+        var uploadVideoStatus = await Collection.Find(x => x.VideoId == videoId).FirstOrDefaultAsync(ct);
         return uploadVideoStatus is null ? null :
             new UploadStatus(
-                id, 
+                uploadVideoStatus.VideoId, 
                 uploadVideoStatus.Stage, 
                 uploadVideoStatus.LastSeq, 
                 uploadVideoStatus.ReceivedBytes, 

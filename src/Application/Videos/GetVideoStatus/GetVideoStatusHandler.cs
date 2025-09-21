@@ -3,23 +3,18 @@ using MediatR;
 
 namespace Application.Videos.GetVideoStatus;
 
-public class GetVideoStatusHandler(IVideoProcessingRepository repository) 
+public class GetVideoStatusHandler(IVideoStatusRepository repository) 
     : IRequestHandler<GetVideoStatusRequest, GetVideoStatusResponse?>
 {
     public async Task<GetVideoStatusResponse?> Handle(GetVideoStatusRequest request, CancellationToken cancellationToken)
     {
-        var videoProcessing = await repository.GetByVideoIdAsync(request.VideoId, cancellationToken);
+        var uploadStatus = await repository.GetAsync(request.VideoId, cancellationToken);
         
-        if (videoProcessing == null)
+        if (uploadStatus == null)
             return null;
 
         return new GetVideoStatusResponse(
-            videoProcessing.VideoId,
-            videoProcessing.Status.ToString(),
-            videoProcessing.StartedAt,
-            videoProcessing.CompletedAt,
-            videoProcessing.TotalFramesProcessed,
-            videoProcessing.QRCodes.Count,
-            videoProcessing.ErrorMessage);
+            uploadStatus.VideoId,
+            uploadStatus.Stage.ToString());
     }
 }

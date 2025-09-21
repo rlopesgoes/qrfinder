@@ -34,7 +34,7 @@ public class KafkaVideoUploader(
 
     private async Task<ResumeInfo> GetResumeInfoAsync(string videoId, CancellationToken cancellationToken)
     {
-        var lastDto = await progressNotifier.GetLastSeqAsync(videoId, cancellationToken);
+        var lastDto = await progressNotifier.GetAsync(videoId, cancellationToken);
         var lastSeq = lastDto?.LastSeq ?? -1;
         
         return new ResumeInfo(

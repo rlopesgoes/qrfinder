@@ -33,7 +33,7 @@ public sealed class VideoStatusRepository(IMongoDatabase db) : IVideoStatusRepos
                 .Set(x => x.UpdatedAtUtc, DateTime.UtcNow),
             new UpdateOptions { IsUpsert = true }, cancellationToken);
 
-    public async Task<UploadStatus?> GetLastSeqAsync(string videoId, CancellationToken cancellationToken)
+    public async Task<UploadStatus?> GetAsync(string videoId, CancellationToken cancellationToken)
     {
         var uploadVideoStatus = await Collection.Find(x => x.VideoId == videoId).FirstOrDefaultAsync(cancellationToken);
         return uploadVideoStatus is null ? null :

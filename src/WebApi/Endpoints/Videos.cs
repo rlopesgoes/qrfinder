@@ -37,12 +37,9 @@ public static class Videos
             {
                 var result = await mediator.Send(new GetVideoStatusRequest(id.ToString("N")));
                 
-                if (result == null)
-                {
-                    return Results.NotFound(new { message = "Video not found or not processed yet" });
-                }
-
-                return Results.Ok(result);
+                return result is null ? 
+                    Results.NotFound(new { message = "Video not found or not processed yet" }) :
+                    Results.Ok(result);
             })
             .WithName("Get status of video processing")
             .WithTags(QrCodeFinder)

@@ -36,7 +36,7 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(sp =>
     return new ConsumerBuilder<string, byte[]>(conf).Build();
 });
 
-builder.Services.AddHostedService<Sample>();
+builder.Services.AddHostedService<QrCodeScanProcessor>();
 
 builder.Services.AddSingleton<IProducer<string, byte[]>>(_ =>
 {

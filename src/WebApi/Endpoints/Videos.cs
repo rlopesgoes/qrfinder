@@ -1,4 +1,6 @@
 using Application.Videos.VideoUploader;
+using Application.Videos.GetVideoStatus;
+using Application.Videos.GetVideoResults;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 
@@ -31,17 +33,31 @@ public static class Videos
             .WithTags(QrCodeFinder)
             .WithOpenApi();
         
-        app.MapGet("/video/{id:guid}/status", async (IMediator mediator, Guid id, string? message) =>
+        app.MapGet("/video/{id:guid}/status", async (IMediator mediator, Guid id) =>
             {
-                return Results.Ok(true);
+                var result = await mediator.Send(new GetVideoStatusRequest(id.ToString("N")));
+                
+                if (result == null)
+                {
+                    return Results.NotFound(new { message = "Video not found or not processed yet" });
+                }
+
+                return Results.Ok(result);
             })
             .WithName("Get status of video processing")
             .WithTags(QrCodeFinder)
             .WithOpenApi();
         
-        app.MapGet("/video/{id:guid}/results", async (IMediator mediator, Guid id, string? message) =>
+        app.MapGet("/video/{id:guid}/results", async (IMediator mediator, Guid id) =>
             {
-                return Results.Ok(true);
+                var result = await mediator.Send(new GetVideoResultsRequest(id.ToString("N")));
+                
+                if (result == null)
+                {
+                    return Results.NotFound(new { message = "Video not found or not processed yet" });
+                }
+
+                return Results.Ok(result);
             })
             .WithName("Get results of qr codes finding")
             .WithTags(QrCodeFinder)

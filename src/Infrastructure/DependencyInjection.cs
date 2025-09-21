@@ -14,6 +14,7 @@ public static class DependencyInjection
     {
         services.AddScoped<IVideoUploader, KafkaVideoUploader>();
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
+        services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
         
         var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS")!;
         services.AddSingleton<IProducer<string, byte[]>>(_ =>
@@ -51,6 +52,16 @@ public static class DependencyInjection
                 new TopicSpecification
                 {
                     Name = "videos.raw-chunks",
+                    NumPartitions = 3,
+                    ReplicationFactor = 1
+                }
+            });
+            
+            adminClient.CreateTopicsAsync(new TopicSpecification[]
+            {
+                new TopicSpecification
+                {
+                    Name = "videos.results",
                     NumPartitions = 3,
                     ReplicationFactor = 1
                 }

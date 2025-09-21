@@ -19,9 +19,8 @@ Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "qrfinder", "videos")
 
 builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
-builder.Services.AddHostedService<Sample>();
-
-builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
+// Consumer para Sample (videos chunks e control)
+builder.Services.AddSingleton<IConsumer<string, byte[]>>(sp =>
 {
     var conf = new ConsumerConfig
     {
@@ -37,6 +36,8 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
     return new ConsumerBuilder<string, byte[]>(conf).Build();
 });
 
+builder.Services.AddHostedService<Sample>();
+
 builder.Services.AddSingleton<IProducer<string, byte[]>>(_ =>
 {
     var conf = new ProducerConfig
@@ -49,9 +50,6 @@ builder.Services.AddSingleton<IProducer<string, byte[]>>(_ =>
     };
     return new ProducerBuilder<string, byte[]>(conf).Build();
 });
-
-builder.Services.AddHostedService<Sample>();
-
 
 var host = builder.Build();
 host.Run();

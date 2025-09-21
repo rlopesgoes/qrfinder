@@ -20,5 +20,13 @@ RUN dotnet publish "WebApi.csproj" -c Release -o /app/publish
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+
+# Configura usuário não-root para segurança
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -S appuser -u 1001 -G appgroup && \
+    chown -R appuser:appgroup /app
+
+USER appuser
+
 ENV ASPNETCORE_URLS=http://+:5000
 ENTRYPOINT ["dotnet", "WebApi.dll"]

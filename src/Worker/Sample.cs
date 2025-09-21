@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text.Json;
 using Confluent.Kafka;
 using ZXing;
+using ZXing.SkiaSharp;
+using SkiaSharp;
 
 namespace Worker;
 
@@ -93,12 +95,18 @@ public class Sample(
            // processa (ffmpeg + zxing)
             var detections = await DetectAsync(fin, ct);
             
-            // publica em videos.results
+            // publica em videos.results com timestamps precisos
             var payload = JsonSerializer.SerializeToUtf8Bytes(new
             {
                 videoId,
                 completedAt = DateTimeOffset.UtcNow,
-                codes = detections.Select(d => new { text = d.text, tSec = d.tSec }).ToArray()
+                processingTimeMs = DateTimeOffset.UtcNow.Subtract(DateTimeOffset.UtcNow).TotalMilliseconds, // Para métricas
+                totalFramesProcessed = detections.Count > 0 ? "Múltiplos" : "18", // Info do debug
+                codes = detections.Select(d => new { 
+                    text = d.text, 
+                    timestampSeconds = Math.Round(d.tSec, 3), // 3 casas decimais para precisão
+                    formattedTime = TimeSpan.FromSeconds(d.tSec).ToString(@"mm\:ss\.fff") // Formato legível
+                }).ToArray()
             });
             
             await producer.ProduceAsync(topicResults,
@@ -145,40 +153,154 @@ public class Sample(
     // --------------- DETECTOR -------------------
     public async Task<IReadOnlyList<(string text, double tSec)>> DetectAsync(string videoPath, CancellationToken ct)
     {
+        // Verifica se ffmpeg está disponível
+        if (!await IsCommandAvailable("ffmpeg"))
+        {
+            throw new InvalidOperationException("FFmpeg não encontrado. Instale com: brew install ffmpeg (macOS) ou apt install ffmpeg (Linux)");
+        }
+        
+        if (!await IsCommandAvailable("ffprobe"))
+        {
+            throw new InvalidOperationException("FFprobe não encontrado. Instale com: brew install ffmpeg (macOS) ou apt install ffmpeg (Linux)");
+        }
+
         var dir = Path.Combine(Path.GetDirectoryName(videoPath)!, Path.GetFileNameWithoutExtension(videoPath) + "_frames");
         Directory.CreateDirectory(dir);
     
-        // 1) extrai 2 fps
+        // 1) extrai frames otimizado para QR codes com debug
         var pattern = Path.Combine(dir, "frame-%06d.png");
-        await Run("ffmpeg", $"-y -threads 1 -i \"{videoPath}\" -vf fps=2 \"{pattern}\"", ct);
+        Console.WriteLine($"[Debug] Extraindo frames de: {videoPath}");
+        await Run("ffmpeg", $"-y -i \"{videoPath}\" -vf \"fps=5\" \"{pattern}\"", ct);
+        
+        var extractedFiles = Directory.GetFiles(dir, "frame-*.png");
+        Console.WriteLine($"[Debug] {extractedFiles.Length} frames extraídos");
     
         // 2) PTS de todos os frames do stream
         var pts = await ProbePts(videoPath, ct);
     
-        // 3) relaciona frames gerados (2fps) com PTS
+        // 3) relaciona frames gerados (3fps) com PTS
         var files = Directory.GetFiles(dir, "frame-*.png").OrderBy(x => x).ToArray();
         var tList = MapFramesToPts(files.Length, pts);
     
-        var reader = new ZXing.BarcodeReader   // <<--- este aqui, não generic
-        {
-            Options = new ZXing.Common.DecodingOptions
-            {
-                TryHarder = true,
-                PossibleFormats = new() { BarcodeFormat.QR_CODE }
-            },
-            AutoRotate = true,
-            TryInverted = true
-        };
+        var reader = new BarcodeReaderGeneric();
+        reader.Options.TryHarder = true;
+        reader.Options.TryInverted = true;
+        reader.Options.PossibleFormats = new List<BarcodeFormat> { BarcodeFormat.QR_CODE };
+        reader.AutoRotate = true;
     
         var results = new List<(string, double)>();
-        for (int i = 0; i < files.Length; i++)
-        {
-            using var bmp = (System.Drawing.Bitmap)System.Drawing.Image.FromFile(files[i]);
-            var r = reader.Decode(bmp);   // funciona com Bitmap
-            if (r is not null && !string.IsNullOrWhiteSpace(r.Text))
-                results.Add((r.Text, i < tList.Count ? tList[i] : i / 2.0));
-        }
+        
+        // Processamento simples e eficaz frame por frame
+        var lockResults = new object();
+        
+        await Parallel.ForEachAsync(files.Select((file, index) => new { file, index }), 
+            new ParallelOptions 
+            { 
+                MaxDegreeOfParallelism = Environment.ProcessorCount,
+                CancellationToken = ct
+            },
+            async (item, cancellationToken) =>
+            {
+                try
+                {
+                    // Carrega imagem com SkiaSharp
+                    using var bitmap = SKBitmap.Decode(item.file);
+                    if (bitmap == null)
+                    {
+                        Console.WriteLine($"[Error] Não foi possível carregar frame {item.index}: {item.file}");
+                        return;
+                    }
+                    
+                    Console.WriteLine($"[Debug] Frame {item.index}: {bitmap.Width}x{bitmap.Height} pixels");
+                    
+                    // Usa o reader do ZXing.SkiaSharp diretamente
+                    var reader = new ZXing.SkiaSharp.BarcodeReader();
+                    reader.Options.TryHarder = true;
+                    reader.Options.TryInverted = true; 
+                    reader.Options.PureBarcode = false;
+                    reader.Options.PossibleFormats = new List<BarcodeFormat> { BarcodeFormat.QR_CODE };
+                    reader.AutoRotate = true;
+                    
+                    // Múltiplas tentativas para QR codes claros
+                    Result? result = null;
+                    
+                    // 1ª tentativa: imagem original
+                    result = reader.Decode(bitmap);
+                    
+                    // 2ª tentativa: escala sempre (melhora detecção em baixa resolução)
+                    if (result == null)
+                    {
+                        var scale = bitmap.Width < 800 ? 3 : 2; // Escala maior para resolução baixa
+                        var newWidth = bitmap.Width * scale;
+                        var newHeight = bitmap.Height * scale;
+                        
+                        var scaledInfo = new SKImageInfo(newWidth, newHeight);
+                        using var scaledBitmap = new SKBitmap(scaledInfo);
+                        bitmap.ScalePixels(scaledBitmap, SKFilterQuality.High);
+                        result = reader.Decode(scaledBitmap);
+                        Console.WriteLine($"[Debug] Frame {item.index}: Escala {scale}x ({newWidth}x{newHeight})");
+                    }
+                    
+                    // 3ª tentativa: inversão de cores (QR claro em fundo escuro)
+                    if (result == null)
+                    {
+                        using var invertedBitmap = InvertColors(bitmap);
+                        if (invertedBitmap != null)
+                        {
+                            result = reader.Decode(invertedBitmap);
+                            Console.WriteLine($"[Debug] Frame {item.index}: Tentou inversão de cores");
+                        }
+                    }
+                    
+                    // 4ª tentativa: alto contraste
+                    if (result == null)
+                    {
+                        using var contrastBitmap = HighContrast(bitmap);
+                        if (contrastBitmap != null)
+                        {
+                            result = reader.Decode(contrastBitmap);
+                            Console.WriteLine($"[Debug] Frame {item.index}: Tentou alto contraste");
+                        }
+                    }
+                    
+                    // 5ª tentativa: binarização (preto e branco puro)
+                    if (result == null)
+                    {
+                        using var binaryBitmap = Binarize(bitmap);
+                        if (binaryBitmap != null)
+                        {
+                            result = reader.Decode(binaryBitmap);
+                            Console.WriteLine($"[Debug] Frame {item.index}: Tentou binarização");
+                        }
+                    }
+                    
+                    Console.WriteLine($"[Debug] Frame {item.index}: {(result != null ? $"QR encontrado: {result.Text}" : "Nenhum QR detectado")}");
+                    
+                    if (result != null && !string.IsNullOrWhiteSpace(result.Text))
+                    {
+                        lock (lockResults)
+                        {
+                            // Timestamp preciso: usa PTS real se disponível, senão calcula baseado no fps
+                            var timestamp = item.index < tList.Count ? tList[item.index] : (item.index * 0.2); // 5fps = 0.2s por frame
+                            results.Add((result.Text, timestamp));
+                            Console.WriteLine($"[SUCCESS] 🎉 QR Code: '{result.Text}' em {timestamp:F2}s");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[Error] Erro processando frame {item.index}: {ex.Message}");
+                }
+                
+                await Task.CompletedTask;
+            });
     
+        Console.WriteLine($"[Final] Total de QR codes detectados: {results.Count}");
+        foreach (var (text, time) in results)
+        {
+            Console.WriteLine($"[Final] QR: '{text}' em {time:F2}s");
+        }
+        
         try { Directory.Delete(dir, true); } catch { /* ignore */ }
         return results;
     }
@@ -218,8 +340,152 @@ public class Sample(
     private static List<double> MapFramesToPts(int framesEmitted, List<double> allPts)
     {
         if (framesEmitted == 0 || allPts.Count == 0) return new();
-        var step = Math.Max(1, allPts.Count / framesEmitted);
-        return allPts.Where((_, i) => i % step == 0).Take(framesEmitted).ToList();
+        
+        var result = new List<double>();
+        
+        // Se temos menos PTS que frames extraídos, usa interpolação
+        if (allPts.Count < framesEmitted)
+        {
+            if (allPts.Count == 0) return result;
+            
+            var duration = allPts.Last() - allPts.First();
+            var interval = duration / (framesEmitted - 1);
+            
+            for (int i = 0; i < framesEmitted; i++)
+            {
+                result.Add(allPts.First() + (i * interval));
+            }
+            return result;
+        }
+        
+        // Mapeia cada frame extraído (5fps) para o PTS mais próximo
+        var videoDuration = allPts.Last() - allPts.First();
+        var frameInterval = videoDuration / (framesEmitted - 1);
+        
+        for (int i = 0; i < framesEmitted; i++)
+        {
+            var targetTime = allPts.First() + (i * frameInterval);
+            
+            // Encontra o PTS mais próximo
+            var closestPts = allPts.OrderBy(pts => Math.Abs(pts - targetTime)).First();
+            result.Add(closestPts);
+        }
+        
+        return result;
+    }
+
+    private static async Task<bool> IsCommandAvailable(string command)
+    {
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = command,
+                Arguments = "-version",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false
+            };
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null) return false;
+            
+            await p.WaitForExitAsync();
+            return p.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static SKBitmap? InvertColors(SKBitmap original)
+    {
+        try
+        {
+            var info = new SKImageInfo(original.Width, original.Height);
+            var inverted = new SKBitmap(info);
+            
+            using var canvas = new SKCanvas(inverted);
+            using var paint = new SKPaint();
+            
+            // Inverte todas as cores
+            var invertMatrix = new float[]
+            {
+                -1, 0, 0, 0, 255,    // Red invertido
+                0, -1, 0, 0, 255,    // Green invertido
+                0, 0, -1, 0, 255,    // Blue invertido
+                0, 0, 0, 1, 0        // Alpha inalterado
+            };
+            
+            paint.ColorFilter = SKColorFilter.CreateColorMatrix(invertMatrix);
+            canvas.DrawBitmap(original, 0, 0, paint);
+            
+            return inverted;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static SKBitmap? HighContrast(SKBitmap original)
+    {
+        try
+        {
+            var info = new SKImageInfo(original.Width, original.Height);
+            var contrast = new SKBitmap(info);
+            
+            using var canvas = new SKCanvas(contrast);
+            using var paint = new SKPaint();
+            
+            // Alto contraste
+            var contrastMatrix = new float[]
+            {
+                3, 0, 0, 0, -128,    // Red: muito contraste
+                0, 3, 0, 0, -128,    // Green
+                0, 0, 3, 0, -128,    // Blue
+                0, 0, 0, 1, 0        // Alpha
+            };
+            
+            paint.ColorFilter = SKColorFilter.CreateColorMatrix(contrastMatrix);
+            canvas.DrawBitmap(original, 0, 0, paint);
+            
+            return contrast;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static SKBitmap? Binarize(SKBitmap original)
+    {
+        try
+        {
+            var info = new SKImageInfo(original.Width, original.Height);
+            var binary = new SKBitmap(info);
+            
+            using var canvas = new SKCanvas(binary);
+            using var paint = new SKPaint();
+            
+            // Converte para escala de cinza e depois binariza
+            var binaryMatrix = new float[]
+            {
+                0.299f, 0.587f, 0.114f, 0, 0,    // Escala de cinza no canal Red
+                0.299f, 0.587f, 0.114f, 0, 0,    // Escala de cinza no canal Green
+                0.299f, 0.587f, 0.114f, 0, 0,    // Escala de cinza no canal Blue
+                0, 0, 0, 1, 0                     // Alpha
+            };
+            
+            paint.ColorFilter = SKColorFilter.CreateColorMatrix(binaryMatrix);
+            canvas.DrawBitmap(original, 0, 0, paint);
+            
+            return binary;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
 

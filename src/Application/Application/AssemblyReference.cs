@@ -1,5 +1,3 @@
 namespace Application;
 
-public class AssemblyReference
-{
-}
+internal record AssemblyReference;

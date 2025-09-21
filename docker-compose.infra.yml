@@ -15,7 +15,7 @@ services:
     image: mongo:7.0
     container_name: qrfinder-mongo
     ports:
-      - "5002:27017"
+      - "27017:27017"
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=password123
@@ -54,12 +54,12 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     container_name: qrfinder-kafka
     ports:
-      - "5001:9092"
+      - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:5001
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -69,15 +69,14 @@ services:
     networks:
       - qrfinder-network
 
-  kafdrop:
-    image: obsidiandynamics/kafdrop:latest
-    container_name: qrfinder-kafdrop
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
     ports:
-      - "5004:9000"
+      - "8080:8080"
     environment:
-      KAFKA_BROKERCONNECT: kafka:29092
-      JVM_OPTS: "-Xms32M -Xmx64M"
-      SERVER_SERVLET_CONTEXTPATH: "/"
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
     depends_on:
       - kafka
     networks:

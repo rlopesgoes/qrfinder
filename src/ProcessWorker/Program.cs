@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Application;
 using Confluent.Kafka;
 using DotNetEnv;
@@ -19,13 +18,13 @@ Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "qrfinder", "videos")
 
 builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
-// Consumer para Sample (videos chunks e control)
-builder.Services.AddSingleton<IConsumer<string, byte[]>>(sp =>
+// Consumer para chunks
+builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ChunkConsumer", (sp, key) =>
 {
     var conf = new ConsumerConfig
     {
         BootstrapServers = bootstrap,
-        GroupId = groupId,
+        GroupId = groupId + "-chunks",
         EnableAutoCommit = false,
         AutoOffsetReset = AutoOffsetReset.Earliest,
         PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
@@ -36,7 +35,22 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(sp =>
     return new ConsumerBuilder<string, byte[]>(conf).Build();
 });
 
-builder.Services.AddHostedService<QrCodeScanProcessor>();
+// Consumer para control
+builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ControlConsumer", (sp, key) =>
+{
+    var conf = new ConsumerConfig
+    {
+        BootstrapServers = bootstrap,
+        GroupId = groupId + "-control",
+        EnableAutoCommit = false,
+        AutoOffsetReset = AutoOffsetReset.Earliest,
+        PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
+    };
+    return new ConsumerBuilder<string, byte[]>(conf).Build();
+});
+
+builder.Services.AddHostedService<VideoChunkConsumer>();
+builder.Services.AddHostedService<VideoControlConsumer>();
 
 builder.Services.AddSingleton<IProducer<string, byte[]>>(_ =>
 {

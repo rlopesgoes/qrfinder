@@ -1,4 +1,4 @@
-namespace Domain;
+namespace Domain.Videos;
 
 public enum UploadStage
 {

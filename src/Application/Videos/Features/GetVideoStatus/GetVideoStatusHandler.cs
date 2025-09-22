@@ -1,7 +1,7 @@
-using Application.Videos.Data;
+using Application.Videos.Ports;
 using MediatR;
 
-namespace Application.Videos.GetVideoStatus;
+namespace Application.Videos.Features.GetVideoStatus;
 
 public class GetVideoStatusHandler(IVideoStatusRepository repository) 
     : IRequestHandler<GetVideoStatusRequest, GetVideoStatusResponse?>

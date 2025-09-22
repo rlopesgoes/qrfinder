@@ -1,6 +1,6 @@
 using Domain.Videos;
 
-namespace Application.Videos.Data;
+namespace Application.Videos.Ports;
 
 public interface IVideoProcessingRepository
 {

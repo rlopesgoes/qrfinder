@@ -1,4 +1,4 @@
-namespace Application.Videos.Common;
+namespace Application.Videos.Ports;
 
 public interface IProgressNotifier
 {

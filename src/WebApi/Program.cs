@@ -1,6 +1,6 @@
 using DotNetEnv;
 using Application;
-using Application.Videos.Common;
+using Application.Videos.Ports;
 using Infrastructure;
 using Microsoft.OpenApi.Models;
 using WebApi.Endpoints;

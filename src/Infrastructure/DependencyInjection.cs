@@ -1,5 +1,4 @@
-using Application.Videos.Common;
-using Application.Videos.Data;
+using Application.Videos.Ports;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Infrastructure.Implementations;
@@ -15,6 +14,9 @@ public static class DependencyInjection
         services.AddScoped<IVideoUploader, KafkaVideoUploader>();
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
+        services.AddScoped<IVideoStorageService, VideoFileService>();
+        services.AddScoped<IVideoFileManager, VideoFileManager>();
+        services.AddScoped<IQrCodeDetector, QrCodeDetector>();
         
         var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS")!;
         services.AddSingleton<IProducer<string, byte[]>>(_ =>

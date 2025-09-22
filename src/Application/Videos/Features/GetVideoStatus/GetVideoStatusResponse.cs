@@ -1,4 +1,4 @@
-namespace Application.Videos.GetVideoStatus;
+namespace Application.Videos.Features.GetVideoStatus;
 
 public record GetVideoStatusResponse(
     string VideoId,

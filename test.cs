@@ -1,0 +1,1 @@
+using System; using Application.Videos.Ports; class Test { static void Main() { var qr = new QrCodeDetection("test", "00:00.000"); Console.WriteLine($"Text: {qr.Text}, Timestamp: {qr.FormattedTimestamp}"); } }

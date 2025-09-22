@@ -1,6 +1,6 @@
-using Application.Videos.VideoUploader;
-using Application.Videos.GetVideoStatus;
-using Application.Videos.GetVideoResults;
+using Application.Videos.Features.GetVideoResults;
+using Application.Videos.Features.GetVideoStatus;
+using Application.Videos.Features.VideoUploader;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
 

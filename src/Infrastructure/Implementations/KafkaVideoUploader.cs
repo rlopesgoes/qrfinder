@@ -1,5 +1,4 @@
-using Application.Videos.Common;
-using Application.Videos.Data;
+using Application.Videos.Ports;
 using Confluent.Kafka;
 
 namespace Infrastructure.Implementations;

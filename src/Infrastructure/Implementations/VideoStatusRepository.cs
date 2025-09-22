@@ -1,6 +1,6 @@
-using Application.Videos.Data;
-using Application.Videos.Data.Dto;
-using Domain;
+using Application.Videos.Ports;
+using Application.Videos.Ports.Dtos;
+using Domain.Videos;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 

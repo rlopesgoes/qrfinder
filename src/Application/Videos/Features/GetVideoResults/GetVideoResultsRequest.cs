@@ -1,5 +1,5 @@
 using MediatR;
 
-namespace Application.Videos.GetVideoResults;
+namespace Application.Videos.Features.GetVideoResults;
 
 public record GetVideoResultsRequest(string VideoId) : IRequest<GetVideoResultsResponse>;

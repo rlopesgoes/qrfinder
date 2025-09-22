@@ -1,7 +1,6 @@
-using Application.Videos.Data.Dto;
-using Domain.Videos;
+using Application.Videos.Ports.Dtos;
 
-namespace Application.Videos.Data;
+namespace Application.Videos.Ports;
 
 public interface IVideoStatusRepository
 {

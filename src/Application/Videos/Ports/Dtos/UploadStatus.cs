@@ -1,6 +1,6 @@
-using Domain;
+using Domain.Videos;
 
-namespace Application.Videos.Data.Dto;
+namespace Application.Videos.Ports.Dtos;
 
 public sealed record UploadStatus(
     string VideoId, 

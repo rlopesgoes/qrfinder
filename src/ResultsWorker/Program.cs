@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Application;
 using Confluent.Kafka;
 using DotNetEnv;

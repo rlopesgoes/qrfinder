@@ -1,7 +1,7 @@
-using Application.Videos.Data;
+using Application.Videos.Ports;
 using MediatR;
 
-namespace Application.Videos.GetVideoResults;
+namespace Application.Videos.Features.GetVideoResults;
 
 public class GetVideoResultsHandler(IVideoProcessingRepository repository) 
     : IRequestHandler<GetVideoResultsRequest, GetVideoResultsResponse?>
@@ -13,7 +13,7 @@ public class GetVideoResultsHandler(IVideoProcessingRepository repository)
         if (videoProcessing == null)
             return null;
 
-        var qrCodes = videoProcessing.QRCodes.Select(qr => new QRCodeResultDto(
+        var qrCodes = videoProcessing.QRCodes.Select(qr => new QrCodeResultDto(
             qr.Text,
             qr.TimestampSeconds,
             qr.FormattedTime,

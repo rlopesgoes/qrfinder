@@ -1,10 +1,9 @@
-using Application.Videos.Common;
-using Application.Videos.Data;
-using Application.Videos.Data.Dto;
-using Domain;
+using Application.Videos.Ports;
+using Application.Videos.Ports.Dtos;
+using Domain.Videos;
 using MediatR;
 
-namespace Application.Videos.VideoUploader;
+namespace Application.Videos.Features.VideoUploader;
 
 public class VideoUploaderHandler(
     IVideoUploader videoUploader, 

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text.Json;
 using Application.Videos.Data;
@@ -26,35 +27,33 @@ public class QrCodeScanProcessor(
     
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        
-        consumer.Subscribe(new[] { _topicChunks, _topicControl });
+        consumer.Subscribe([_topicChunks, _topicControl]);
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            ConsumeResult<string, byte[]>? cr = null;
+            ConsumeResult<string, byte[]>? consumeResult = null;
+
             try
             {
-                cr = consumer.Consume(stoppingToken);
-                if (cr is null) continue;
+                consumeResult = consumer.Consume(stoppingToken);
 
-                var topic = cr.Topic;
-                var videoId = cr.Message.Key!;
+                if (consumeResult is null)
+                    continue;
 
+                var topic = consumeResult.Topic!;
+                var videoId = consumeResult.Message.Key!;
 
-                await videoStatusRepository.UpsertAsync(new UploadStatus(videoId, UploadStage.Processing), stoppingToken);
-                
                 if (topic == _topicChunks)
-                {
-                    await AppendChunkAsync(videoId, cr.Message.Value, stoppingToken);
-                }
+                    await AppendChunkAsync(videoId, consumeResult.Message.Value, stoppingToken);
                 else if (topic == _topicControl)
-                {
-                    await HandleControlAsync(videoId, cr.Message.Headers, stoppingToken);
-                }
-                
-                consumer.Commit(cr); 
+                    await HandleControlAsync(videoId, consumeResult.Message.Headers, stoppingToken);
+
+                consumer.Commit(consumeResult);
             }
-            catch (OperationCanceledException) { break; }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
             catch (Exception)
             {
                 await Task.Delay(50, stoppingToken);
@@ -62,273 +61,303 @@ public class QrCodeScanProcessor(
         }
     }
 
-    private async Task AppendChunkAsync(string videoId, byte[] chunk, CancellationToken ct)
+    private async Task AppendChunkAsync(string videoId, byte[] chunk, CancellationToken cancellationToken)
     {
-        var partPath = PartPath(videoId);
+        var partPath = BuildPartVideoPath(videoId);
         Directory.CreateDirectory(Path.GetDirectoryName(partPath)!);
 
-        await using var fs = new FileStream(partPath, FileMode.Append, FileAccess.Write, FileShare.Read,
-            bufferSize: ChunkBufferSize, options: FileOptions.Asynchronous | FileOptions.SequentialScan);
-        await fs.WriteAsync(chunk.AsMemory(), ct);
-
+        await using var fileStream = new FileStream(
+            path: partPath, 
+            mode: FileMode.Append, 
+            access: FileAccess.Write, 
+            share: FileShare.Read,
+            bufferSize: ChunkBufferSize, 
+            options: FileOptions.Asynchronous | FileOptions.SequentialScan);
+        
+        await fileStream.WriteAsync(chunk.AsMemory(), cancellationToken);
     }
+    
+    private const string Started = "started";
+    private const string Completed = "completed";
 
-    private async Task HandleControlAsync(string videoId, Headers headers, CancellationToken ct)
+    private async Task HandleControlAsync(string videoId, Headers headers, CancellationToken cancellationToken)
     {
-        var type = headers.GetUtf8("type") ?? "";
-        if (type == "started")
-        {
+        var type = headers.GetUtf8("type");
+        
+        if (type is null)
             return;
-        }
+        
+        if (type is Started)
+            return;
 
-        if (type == "completed")
+        if (type is Completed)
         {
-            var lastSeq = headers.GetInt64("lastSeq");
-            var total = headers.GetInt64("total-bytes");
-            var fin = await FinalizeAsync(videoId);
+            await videoStatusRepository.UpsertAsync(new UploadStatus(videoId, UploadStage.Processing), cancellationToken);
+            
+            var completeVideoPath = GetCompleteVideoPath(videoId);
+            
+            var startTime = DateTimeOffset.UtcNow;
 
-            var detections = await DetectAsync(fin, ct);
+            var detections = await DetectAsync(completeVideoPath, cancellationToken);
             
-            var payload = JsonSerializer.SerializeToUtf8Bytes(new
-            {
-                videoId,
-                completedAt = DateTimeOffset.UtcNow,
-                processingTimeMs = DateTimeOffset.UtcNow.Subtract(DateTimeOffset.UtcNow).TotalMilliseconds,
-                totalFramesProcessed = detections.Count > 0 ? "Multiple" : "18",
-                codes = detections.Select(d => new { 
-                    text = d.text, 
-                    timestampSeconds = Math.Round(d.tSec, 3),
-                    formattedTime = TimeSpan.FromSeconds(d.tSec).ToString(@"mm\:ss\.fff")
-                }).ToArray()
-            });
+            var payload = SerializeResult(videoId, startTime, detections);
             
-            await producer.ProduceAsync(_topicResults,
-                new Message<string, byte[]> { Key = videoId, Value = payload }, ct);
+            await SendResultsAsync(videoId, payload, cancellationToken);
             
-            
-            await videoStatusRepository.UpsertAsync(new UploadStatus(videoId, UploadStage.Processed), ct);
+            await videoStatusRepository.UpsertAsync(new UploadStatus(videoId, UploadStage.Processed), cancellationToken);
 
-            TryDelete(fin);
+            DeleteVideo(completeVideoPath);
         }
     }
 
-    private string PartPath(string videoId) => Path.Combine(_tempDirectory, $"{SanitizeFileName(videoId)}.bin.part");
-    private string FinalPath(string videoId) => Path.Combine(_tempDirectory, $"{SanitizeFileName(videoId)}.bin");
+    private static byte[] SerializeResult(
+        string videoId, 
+        DateTimeOffset startTime,
+        IReadOnlyCollection<(string text, double tSec)> detections) =>
+        JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            videoId,
+            completedAt = DateTimeOffset.UtcNow,
+            processingTimeMs = DateTimeOffset.UtcNow.Subtract(startTime).TotalMilliseconds,
+            codes = detections.Select(detection => new
+            { 
+                text = detection.text, 
+                timestamp = TimeSpan.FromSeconds(detection.tSec).ToString(@"mm\:ss\.fff")
+            }).ToArray()
+        });
+    
+    private async Task SendResultsAsync(string videoId, byte[] payload, CancellationToken cancellationToken)
+        => await producer.ProduceAsync(_topicResults, 
+            new Message<string, byte[]> { Key = videoId, Value = payload }, cancellationToken);
+    
+    private string BuildPartVideoPath(string videoId) => Path.Combine(_tempDirectory, $"{SanitizeFileName(videoId)}.bin.part");
+    private string BuildCompleteVideoPath(string videoId) => Path.Combine(_tempDirectory, $"{SanitizeFileName(videoId)}.bin");
 
     private static string SanitizeFileName(string fileName)
     {
-        foreach (var c in Path.GetInvalidFileNameChars()) fileName = fileName.Replace(c, '_');
-        return fileName.Trim();
-    }
-
-    private async Task<string> FinalizeAsync(string videoId)
-    {
-        var part = PartPath(videoId);
-        var fin  = FinalPath(videoId);
-        if (!File.Exists(part))
-        {
-                return fin;
-        }
-        if (File.Exists(fin)) File.Delete(fin);
-        File.Move(part, fin);
-        await Task.Yield();
-        return fin;
-    }
-
-    private static void TryDelete(string path)
-    {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
-    }
-
-    public async Task<IReadOnlyList<(string text, double tSec)>> DetectAsync(string videoPath, CancellationToken ct)
-    {
-        if (!await IsCommandAvailable("ffmpeg"))
-        {
-            throw new InvalidOperationException("FFmpeg not found. Install with: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)");
-        }
+        var result = fileName;
         
-        if (!await IsCommandAvailable("ffprobe"))
-        {
-            throw new InvalidOperationException("FFprobe not found. Install with: brew install ffmpeg (macOS) or apt install ffmpeg (Linux)");
-        }
-
-        var dir = Path.Combine(Path.GetDirectoryName(videoPath)!, Path.GetFileNameWithoutExtension(videoPath) + "_frames");
-        Directory.CreateDirectory(dir);
-    
-        var pattern = Path.Combine(dir, "frame-%06d.png");
-        await Run("ffmpeg", $"-y -i \"{videoPath}\" -vf \"fps={DefaultFrameRate}\" \"{pattern}\"", ct);
+        foreach (var c in Path.GetInvalidFileNameChars()) 
+            result = result.Replace(c, '_');
         
-        var extractedFiles = Directory.GetFiles(dir, "frame-*.png");
+        return result.Trim();
+    }
+
+    private string GetCompleteVideoPath(string videoId)
+    {
+        var partPath = BuildPartVideoPath(videoId);
+        var finalPath  = BuildCompleteVideoPath(videoId);
+        
+        if (!File.Exists(partPath))
+            return finalPath;
+        
+        if (File.Exists(finalPath))
+            File.Delete(finalPath);
+        
+        File.Move(partPath, finalPath);
+        
+        return finalPath;
+    }
+
+    private static void DeleteVideo(string path)
+    {
+        if (File.Exists(path))
+            File.Delete(path);
+    }
     
-        var pts = await ProbePts(videoPath, ct);
+    private static string BuildFramesDirectory(string videoPath)
+        => Path.Combine(Path.GetDirectoryName(videoPath)!, Path.GetFileNameWithoutExtension(videoPath) + "_frames");
+
+    private async Task<IReadOnlyList<(string text, double tSec)>> DetectAsync(string videoPath, CancellationToken cancellationToken)
+    {
+        var framesDirectory = BuildFramesDirectory(videoPath);
+        Directory.CreateDirectory(framesDirectory);
     
-        var files = Directory.GetFiles(dir, "frame-*.png").OrderBy(x => x).ToArray();
-        var tList = MapFramesToPts(files.Length, pts);
+        var pattern = Path.Combine(framesDirectory, "frame-%06d.png");
+        
+        await Run("ffmpeg", $"-y -i \"{videoPath}\" -vf \"fps={DefaultFrameRate}\" \"{pattern}\"", cancellationToken);
     
-        var reader = new BarcodeReaderGeneric();
-        reader.Options.TryHarder = true;
-        reader.Options.TryInverted = true;
-        reader.Options.PossibleFormats = new List<BarcodeFormat> { BarcodeFormat.QR_CODE };
-        reader.AutoRotate = true;
+        var videoTimestamps = await ExtractVideoTimestamps(videoPath, cancellationToken);
     
+        var files = Directory.GetFiles(framesDirectory, "frame-*.png")
+                                    .OrderBy(x => x).ToArray();
+        
+        var frameTimestamps = MapFramesToTimestamps(files.Length, videoTimestamps);
+    
+        var reader = new BarcodeReaderGeneric
+        {
+            Options =
+            {
+                TryHarder = true,
+                TryInverted = true,
+                PossibleFormats = new List<BarcodeFormat> { BarcodeFormat.QR_CODE }
+            },
+            AutoRotate = true
+        };
+
         var results = new List<(string, double)>();
         
-        var lockResults = new object();
+        var frameResults = new ConcurrentBag<(string text, double timestamp)>();
         
-        await Parallel.ForEachAsync(files.Select((file, index) => new { file, index }), 
+        await Parallel.ForEachAsync(
+            files.Select((file, index) => new { file, index }),
             new ParallelOptions 
             { 
                 MaxDegreeOfParallelism = Environment.ProcessorCount,
-                CancellationToken = ct
+                CancellationToken = cancellationToken
             },
-            (item, _) =>
+            (frameInfo, _) =>
             {
                 try
                 {
-                    var result = ProcessFrame(item.file);
-                    if (result != null)
+                    var qrResult = ProcessFrame(frameInfo.file);
+                    if (qrResult?.Text != null)
                     {
-                        lock (lockResults)
-                        {
-                            var timestamp = item.index < tList.Count ? tList[item.index] : (item.index * FrameInterval);
-                            results.Add((result.Text, timestamp));
-                        }
+                        var timestamp = frameInfo.index < frameTimestamps.Count 
+                            ? frameTimestamps.ToArray()[frameInfo.index] 
+                            : frameInfo.index * FrameInterval;
+                            
+                        frameResults.Add((qrResult.Text, timestamp));
                     }
                 }
-                catch (Exception)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    // Ignore frame processing errors
+                    // Skip corrupted or unreadable frames
                 }
                 
                 return ValueTask.CompletedTask;
             });
-    
+            
+        results.AddRange(frameResults.ToList());
         
         var uniqueResults = results
             .GroupBy(r => r.Item1)
             .Select(g => g.OrderBy(r => r.Item2).First())
             .OrderBy(r => r.Item2)
             .ToList();
-            
         
-        try { Directory.Delete(dir, true); } catch { }
+        TryDelete(framesDirectory);
+        
         return uniqueResults;
     }
 
-    private static async Task Run(string exe, string args, CancellationToken ct)
+    private static void TryDelete(string directory)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo
+        try 
+        { 
+            Directory.Delete(directory, true); 
+        } 
+        catch (Exception ex) when (ex is DirectoryNotFoundException or UnauthorizedAccessException)
+        {
+            // Ignore cleanup errors
+        }
+    }
+
+    private static async Task Run(string exe, string args, CancellationToken cancellationToken)
+    {
+        var processStartInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = exe, Arguments = args,
             RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false
         };
-        using var p = System.Diagnostics.Process.Start(psi)!;
-        _ = await p.StandardError.ReadToEndAsync(ct);
-        await p.WaitForExitAsync(ct);
-        if (p.ExitCode != 0) throw new Exception($"{exe} failed");
+        
+        using var process = System.Diagnostics.Process.Start(processStartInfo)!;
+        _ = await process.StandardError.ReadToEndAsync(cancellationToken);
+        
+        await process.WaitForExitAsync(cancellationToken);
+        
+        if (process.ExitCode != 0) 
+            throw new Exception($"{exe} failed");
     }
 
-    private static async Task<List<double>> ProbePts(string videoPath, CancellationToken ct)
+    private static async Task<IReadOnlyCollection<double>> ExtractVideoTimestamps(string videoPath, CancellationToken cancellationToken)
     {
-        var psi = new System.Diagnostics.ProcessStartInfo
+        var processStartInfo = new System.Diagnostics.ProcessStartInfo
         {
             FileName = "ffprobe",
             Arguments = $"-v error -select_streams v:0 -show_entries frame=pkt_pts_time -of csv=p=0 \"{videoPath}\"",
             RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false
         };
-        using var p = System.Diagnostics.Process.Start(psi)!;
-        var outStr = await p.StandardOutput.ReadToEndAsync(ct);
-        await p.WaitForExitAsync(ct);
+        
+        using var process = System.Diagnostics.Process.Start(processStartInfo)!;
+        
+        var outStr = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+        
+        await process.WaitForExitAsync(cancellationToken);
 
         var list = new List<double>();
         foreach (var line in outStr.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             if (double.TryParse(line.Trim().Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
                 list.Add(d);
+        
         return list;
     }
 
-    private static List<double> MapFramesToPts(int framesEmitted, List<double> allPts)
+    private static IReadOnlyCollection<double> MapFramesToTimestamps(int framesEmitted, IReadOnlyCollection<double> allVideoTimestamps)
     {
-        if (framesEmitted == 0 || allPts.Count == 0) return new();
+        if (framesEmitted == 0 || allVideoTimestamps.Count == 0)
+            return [];
         
         var result = new List<double>();
         
-        if (allPts.Count < framesEmitted)
+        if (allVideoTimestamps.Count < framesEmitted)
         {
-            if (allPts.Count == 0) return result;
+            if (allVideoTimestamps.Count == 0) return result;
             
-            var duration = allPts.Last() - allPts.First();
+            var duration = allVideoTimestamps.Last() - allVideoTimestamps.First();
             var interval = duration / (framesEmitted - 1);
             
             for (int i = 0; i < framesEmitted; i++)
-            {
-                result.Add(allPts.First() + (i * interval));
-            }
+                result.Add(allVideoTimestamps.First() + (i * interval));
+            
             return result;
         }
         
-        var videoDuration = allPts.Last() - allPts.First();
+        var videoDuration = allVideoTimestamps.Last() - allVideoTimestamps.First();
         var frameInterval = videoDuration / (framesEmitted - 1);
         
-        for (int i = 0; i < framesEmitted; i++)
+        for (var i = 0; i < framesEmitted; i++)
         {
-            var targetTime = allPts.First() + (i * frameInterval);
+            var targetTime = allVideoTimestamps.First() + (i * frameInterval);
             
-            var closestPts = allPts.OrderBy(pts => Math.Abs(pts - targetTime)).First();
-            result.Add(closestPts);
+            var closestTimestamp = allVideoTimestamps.OrderBy(timestamp => Math.Abs(timestamp - targetTime)).First();
+            result.Add(closestTimestamp);
         }
         
         return result;
     }
 
-    private static async Task<bool> IsCommandAvailable(string command)
-    {
-        try
-        {
-            var psi = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = command,
-                Arguments = "-version",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false
-            };
-            using var p = System.Diagnostics.Process.Start(psi);
-            if (p == null) return false;
-            
-            await p.WaitForExitAsync();
-            return p.ExitCode == 0;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    private Result? ProcessFrame(string filePath)
+    private static Result? ProcessFrame(string filePath)
     {
         using var bitmap = SKBitmap.Decode(filePath);
-        if (bitmap == null) return null;
+        
+        if (bitmap is null) 
+            return null;
 
         var reader = CreateQrCodeReader();
         
         var result = reader.Decode(bitmap);
-        if (result != null) return result;
+        if (result is not null) 
+            return result;
 
         result = TryScaledDecoding(reader, bitmap);
-        if (result != null) return result;
+        if (result is not null) 
+            return result;
 
         result = TryInvertedDecoding(reader, bitmap);
-        if (result != null) return result;
+        if (result is not null)
+            return result;
 
         result = TryHighContrastDecoding(reader, bitmap);
-        if (result != null) return result;
+        if (result is not null) 
+            return result;
 
         result = TryBinarizedDecoding(reader, bitmap);
+        
         return result;
     }
 
-    private static ZXing.SkiaSharp.BarcodeReader CreateQrCodeReader() =>
+    private static BarcodeReader CreateQrCodeReader() =>
         new()
         {
             Options =

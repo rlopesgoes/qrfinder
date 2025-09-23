@@ -15,10 +15,12 @@ public static class DependencyInjection
         services.AddScoped<IVideoUploader, KafkaVideoUploader>();
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
+        services.AddScoped<IResultsPublisher, Infrastructure.Videos.KafkaResultsPublisher>();
+        services.AddScoped<IQrCodeDetector, QrCodeDetector>();
+        services.AddScoped<IVideoChunkStorage, Infrastructure.Videos.FileVideoChunkStorage>();
         
         // Domain services (Clean Architecture)
-        services.AddScoped<Domain.Videos.Ports.IVideoContentService, Infrastructure.Videos.VideoContentService>();
-        services.AddScoped<Domain.Videos.Ports.INotificationService, Infrastructure.Videos.NotificationService>();
+        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.QrCodeExtractor>();
         
         var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS")!;
         services.AddSingleton<IProducer<string, byte[]>>(_ =>

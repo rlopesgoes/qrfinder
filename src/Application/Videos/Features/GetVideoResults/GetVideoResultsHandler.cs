@@ -13,17 +13,11 @@ public class GetVideoResultsHandler(IVideoProcessingRepository repository)
         if (videoProcessing == null)
             return null;
 
-        var qrCodes = videoProcessing.QRCodes.Select(qr => new QrCodeResultDto(
-            qr.Text,
-            qr.TimestampSeconds,
-            qr.FormattedTime,
-            qr.DetectedAt)).ToArray();
-
         return new GetVideoResultsResponse(
             videoProcessing.VideoId,
-            videoProcessing.Status.ToString(),
+            videoProcessing.Status,
             videoProcessing.CompletedAt,
-            qrCodes.Length,
-            qrCodes);
+            videoProcessing.TotalQrCodes,
+            videoProcessing.QrCodes);
     }
 }

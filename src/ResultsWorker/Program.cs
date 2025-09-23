@@ -1,4 +1,3 @@
-using Application;
 using Confluent.Kafka;
 using DotNetEnv;
 using Infrastructure;
@@ -9,10 +8,9 @@ Env.TraversePath().Load();
 var builder = Host.CreateApplicationBuilder(args);
 
 var bootstrap = "localhost:9092";
-var groupId = "results-worker";
+var groupId = "videos-worker-results";
 
 builder.Services.AddInfrastructure();
-builder.Services.AddApplication();
 
 builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
 {
@@ -21,8 +19,8 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
         BootstrapServers = bootstrap,
         GroupId = groupId,
         EnableAutoCommit = false,
-        AutoOffsetReset = AutoOffsetReset.Latest,
-        PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
+        AutoOffsetReset = AutoOffsetReset.Earliest,
+        PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
     };
     return new ConsumerBuilder<string, byte[]>(conf).Build();
 });

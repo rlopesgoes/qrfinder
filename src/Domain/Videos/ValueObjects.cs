@@ -58,3 +58,10 @@ public record ProcessingMetrics(
 
     public double ProcessingTimeMs => ProcessingDuration.TotalMilliseconds;
 }
+
+public record QrCodeDetection(string Text, double TimestampSeconds);
+
+public record ProcessingResult(
+    VideoId VideoId,
+    IReadOnlyList<QrCode> QrCodes,
+    ProcessingMetrics Metrics);

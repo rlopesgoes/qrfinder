@@ -1,11 +1,17 @@
-using Domain.Videos;
+using Application.Videos.Ports.Dtos;
 
 namespace Application.Videos.Ports;
 
 public interface IVideoProcessingRepository
 {
-    Task<VideoProcessing?> GetByVideoIdAsync(string videoId, CancellationToken cancellationToken = default);
-    Task SaveAsync(VideoProcessing videoProcessing, CancellationToken cancellationToken = default);
-    Task UpdateStatusAsync(string videoId, VideoProcessingStatus status, string? errorMessage = null, CancellationToken cancellationToken = default);
-    Task AddQRCodeResultsAsync(string videoId, IEnumerable<QRCodeResult> qrCodes, CancellationToken cancellationToken = default);
+    Task<VideoProcessingResult?> GetByVideoIdAsync(string videoId, CancellationToken cancellationToken = default);
+    Task SaveAsync(VideoProcessingResult videoProcessing, CancellationToken cancellationToken = default);
 }
+
+public record VideoProcessingResult(
+    string VideoId,
+    string Status,
+    DateTime StartedAt,
+    DateTime? CompletedAt,
+    int TotalQrCodes,
+    IReadOnlyList<QrCodeResultDto> QrCodes);

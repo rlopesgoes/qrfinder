@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Globalization;
 using Application.Videos.Ports;
+using Domain.Videos;
 using SkiaSharp;
 using ZXing;
 using ZXing.SkiaSharp;
@@ -15,7 +16,7 @@ public class QrCodeDetector : IQrCodeDetector
     public async Task<IReadOnlyCollection<QrCodeDetection>> DetectQrCodesAsync(string videoPath, CancellationToken cancellationToken)
     {
         var qrCodes = await DetectQrCodesInternalAsync(videoPath, cancellationToken);
-        return qrCodes.Select(qr => new QrCodeDetection(qr.content, TimeSpan.FromSeconds(qr.timestamp).ToString(@"mm\:ss\.fff"))).ToList();
+        return qrCodes.Select(qr => new QrCodeDetection(qr.content, qr.timestamp)).ToList();
     }
     
     private static async Task<IReadOnlyCollection<(string content, double timestamp)>> DetectQrCodesInternalAsync(string videoPath, CancellationToken cancellationToken)

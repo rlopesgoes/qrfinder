@@ -1,3 +1,5 @@
+using Application.Videos.Ports;
+using Application.Videos.Ports.Dtos;
 using Domain.Videos;
 using Domain.Videos.Ports;
 using MediatR;
@@ -16,7 +18,8 @@ public record QrCodeResponse(string Text, string FormattedTimestamp);
 
 public class ProcessVideoHandler(
     IVideoContentService contentService,
-    INotificationService notificationService)
+    INotificationService notificationService,
+    IVideoStatusRepository videoStatusRepository)
     : IRequestHandler<ProcessVideoCommand, ProcessVideoResponse?>
 {
     public async Task<ProcessVideoResponse?> Handle(ProcessVideoCommand request, CancellationToken cancellationToken)
@@ -31,6 +34,11 @@ public class ProcessVideoHandler(
 
         Console.WriteLine($"[DEBUG] Processing completed message for videoId={request.VideoId}");
         var videoId = VideoId.From(request.VideoId);
+
+        // 1. Update status to Processing
+        await videoStatusRepository.UpsertAsync(
+            new UploadStatus(request.VideoId, UploadStage.Processing, -1, 0, 0, DateTime.UtcNow), 
+            cancellationToken);
 
         // Original logic: Process file directly without aggregate
         Console.WriteLine($"[DEBUG] Processing video file directly...");
@@ -58,10 +66,15 @@ public class ProcessVideoHandler(
             
             var processingResult = new ProcessingResult(videoId, qrCodes, processingMetrics);
 
-            // 7. Notify completion
+            // 7. Update status to Processed
+            await videoStatusRepository.UpsertAsync(
+                new UploadStatus(request.VideoId, UploadStage.Processed, -1, 0, 0, DateTime.UtcNow), 
+                cancellationToken);
+
+            // 8. Notify completion
             await notificationService.NotifyProcessingCompletedAsync(videoId, processingResult, cancellationToken);
 
-            // 8. Return response (preserving exact original JSON structure)
+            // 9. Return response (preserving exact original JSON structure)
             var response = new ProcessVideoResponse(
                 VideoId: request.VideoId,
                 CompletedAt: DateTimeOffset.UtcNow,

@@ -1,3 +1,5 @@
+using Application.Videos.Ports.Dtos;
+
 namespace Application.Videos.Features.GetVideoResults;
 
 public record GetVideoResultsResponse(
@@ -5,4 +7,4 @@ public record GetVideoResultsResponse(
     string Status,
     DateTime? CompletedAt,
     int TotalQrCodes,
-    QrCodeResultDto[] QrCodes);
+    IReadOnlyList<QrCodeResultDto> QrCodes);

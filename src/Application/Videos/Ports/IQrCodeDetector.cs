@@ -1,3 +1,5 @@
+using Domain.Videos;
+
 namespace Application.Videos.Ports;
 
 public interface IQrCodeDetector

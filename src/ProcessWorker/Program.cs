@@ -9,11 +9,7 @@ Env.TraversePath().Load();
 var builder = Host.CreateApplicationBuilder(args);
 
 var bootstrap = "localhost:9092";
-var topicChunks = "videos.raw-chunks";
-var topicControl =  "videos.control";
-var topicResults =  "videos.results";
-var groupId     =  "videos-worker-simple";
-var workDir     =  "/data/videos"; // pasta para .part/.bin
+var groupId = "videos-worker-simple";
 Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "qrfinder", "videos"));
 
 builder.Services.AddInfrastructure();

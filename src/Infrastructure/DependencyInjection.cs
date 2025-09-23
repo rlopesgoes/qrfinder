@@ -11,16 +11,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
-        // Legacy services (keeping for compatibility)
+        // Application layer services
         services.AddScoped<IVideoUploader, KafkaVideoUploader>();
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
-        services.AddScoped<IVideoStorageService, VideoFileService>();
-        services.AddScoped<IVideoFileManager, VideoFileManager>();
-        services.AddScoped<IQrCodeDetector, QrCodeDetector>();
         
-        // New DDD services (3 unified ports)
-        services.AddScoped<Domain.Videos.Ports.IVideoRepository, Infrastructure.Videos.VideoRepository>();
+        // Domain services (Clean Architecture)
         services.AddScoped<Domain.Videos.Ports.IVideoContentService, Infrastructure.Videos.VideoContentService>();
         services.AddScoped<Domain.Videos.Ports.INotificationService, Infrastructure.Videos.NotificationService>();
         

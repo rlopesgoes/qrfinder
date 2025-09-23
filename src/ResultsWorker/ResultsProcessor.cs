@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Application.Videos.Ports;
+using Application.Videos.Ports.Dtos;
 using Confluent.Kafka;
-using Domain.Videos;
 
 namespace ResultsWorker;
 
@@ -9,12 +9,12 @@ public class ResultsProcessor(
     IConsumer<string, byte[]> consumer,
     IVideoProcessingRepository repository) : BackgroundService
 {
-    private readonly string topicResults = "videos.results";
+    private readonly string _topicResults = "videos.results";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        consumer.Subscribe(topicResults);
-        Console.WriteLine($"[ResultsWorker] Subscribed to: {topicResults}");
+        consumer.Subscribe(_topicResults);
+        Console.WriteLine($"[ResultsWorker] Subscribed to: {_topicResults}");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -28,38 +28,21 @@ public class ResultsProcessor(
 
                 Console.WriteLine($"[ResultsWorker] Processing results for video: {videoId}");
 
-                // Converte para domain objects
-                var qrCodes = resultData.codes.Select(c => new QRCodeResult
-                {
-                    Text = c.text,
-                    TimestampSeconds = c.timestampSeconds,
-                    FormattedTime = c.formattedTime,
-                    DetectedAt = DateTime.UtcNow
-                }).ToList();
+                var qrCodes = resultData.QrCodes.Select(c => new QrCodeResultDto(
+                    c.Text,
+                    c.TimestampSeconds,
+                    c.FormattedTimestamp,
+                    DateTime.UtcNow)).ToList();
 
-                // Verifica se já existe registro
-                var existing = await repository.GetByVideoIdAsync(videoId, stoppingToken);
-                if (existing == null)
-                {
-                    // Cria novo registro
-                    var videoProcessing = new VideoProcessing
-                    {
-                        Id = Guid.NewGuid().ToString(),
-                        VideoId = videoId,
-                        Status = VideoProcessingStatus.Completed,
-                        StartedAt = resultData.completedAt.AddSeconds(-10).DateTime, // Aproximação
-                        CompletedAt = resultData.completedAt.DateTime,
-                        TotalFramesProcessed = qrCodes.Count,
-                        QRCodes = qrCodes
-                    };
+                var videoProcessingResult = new VideoProcessingResult(
+                    videoId,
+                    "Completed",
+                    resultData.CompletedAt.AddSeconds(-resultData.ProcessingTimeMs / 1000).DateTime,
+                    resultData.CompletedAt.DateTime,
+                    qrCodes.Count,
+                    qrCodes);
 
-                    await repository.SaveAsync(videoProcessing, stoppingToken);
-                }
-                else
-                {
-                    // Atualiza com resultados
-                    await repository.AddQRCodeResultsAsync(videoId, qrCodes, stoppingToken);
-                }
+                await repository.SaveAsync(videoProcessingResult, stoppingToken);
 
                 Console.WriteLine($"[ResultsWorker] Saved {qrCodes.Count} QR codes for video: {videoId}");
                 consumer.StoreOffset(cr);
@@ -75,15 +58,13 @@ public class ResultsProcessor(
     }
 }
 
-// DTOs para deserialização
 public record VideoResultMessage(
-    string videoId,
-    DateTimeOffset completedAt,
-    double processingTimeMs,
-    string totalFramesProcessed,
-    QRCodeDto[] codes);
+    string VideoId,
+    DateTimeOffset CompletedAt,
+    double ProcessingTimeMs,
+    QrCodeMessageDto[] QrCodes);
 
-public record QRCodeDto(
-    string text,
-    double timestampSeconds,
-    string formattedTime);
+public record QrCodeMessageDto(
+    string Text,
+    double TimestampSeconds,
+    string FormattedTimestamp);

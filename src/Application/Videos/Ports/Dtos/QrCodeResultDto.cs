@@ -1,7 +1,7 @@
-namespace Application.Videos.Features.GetVideoResults;
+namespace Application.Videos.Ports.Dtos;
 
 public record QrCodeResultDto(
     string Text,
     double TimestampSeconds,
-    string FormattedTime,
+    string FormattedTimestamp,
     DateTime DetectedAt);

@@ -1,4 +1,4 @@
-using Application.Videos.Features.RebuildVideo;
+using Application.Videos.UseCases.StoreVideoChunk;
 using Confluent.Kafka;
 using MediatR;
 
@@ -24,7 +24,7 @@ public class VideoChunkConsumer(
                 var videoId = consumeResult.Message.Key!;
                 var chunkData = consumeResult.Message.Value;
 
-                await mediator.Send(new RebuildVideoRequest(videoId, chunkData), stoppingToken);
+                await mediator.Send(new StoreVideoChunkCommand(videoId, chunkData), stoppingToken);
                 consumer.Commit(consumeResult);
             }
             catch (OperationCanceledException)

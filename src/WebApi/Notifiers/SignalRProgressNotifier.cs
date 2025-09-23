@@ -4,9 +4,9 @@ using WebApi.Hubs;
 
 namespace WebApi.Notifiers;
 
-public sealed class SignalRProgressNotifier(IHubContext<UploadProgressHub> hub) : IProgressNotifier
+public sealed class SignalRProgressNotifier(IHubContext<UploadProgressHub> hub) : IUploadReporter
 {
-    public Task NotifyStartedAsync(string videoId, long totalBytes, CancellationToken cancellationToken)
+    public Task OnStartedAsync(string videoId, long totalBytes, CancellationToken cancellationToken)
     {
         var videoIdNormalized = videoId?.Trim().ToLowerInvariant() ?? string.Empty;
         return hub.Clients.Group(videoIdNormalized).SendAsync("started",
@@ -19,7 +19,7 @@ public sealed class SignalRProgressNotifier(IHubContext<UploadProgressHub> hub) 
             }, cancellationToken);
     }
 
-    public Task NotifyProgressAsync(string videoId, long lastSeq, long receivedBytes, long totalBytes, CancellationToken cancellationToken)
+    public Task OnProgressAsync(string videoId, long lastSeq, long receivedBytes, long totalBytes, CancellationToken cancellationToken)
     {
         var videoIdNormalized = videoId?.Trim().ToLowerInvariant() ?? string.Empty;
         return hub.Clients.Group(videoIdNormalized).SendAsync("progress",
@@ -32,7 +32,7 @@ public sealed class SignalRProgressNotifier(IHubContext<UploadProgressHub> hub) 
             }, cancellationToken);
     }
 
-    public Task NotifyCompletedAsync(string videoId, long lastSeq, long receivedBytes, long totalBytes, CancellationToken cancellationToken)
+    public Task OnCompletedAsync(string videoId, long lastSeq, long receivedBytes, long totalBytes, CancellationToken cancellationToken)
     {
         var videoIdNormalized = videoId?.Trim().ToLowerInvariant() ?? string.Empty;
         return hub.Clients.Group(videoIdNormalized).SendAsync("completed",

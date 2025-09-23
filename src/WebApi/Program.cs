@@ -15,7 +15,7 @@ builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
 
 builder.Services.AddSignalR();
-builder.Services.AddScoped<IProgressNotifier, SignalRProgressNotifier>();
+builder.Services.AddScoped<IUploadReporter, SignalRProgressNotifier>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>

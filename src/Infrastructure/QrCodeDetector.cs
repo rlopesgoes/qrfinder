@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Globalization;
-using Application.Videos.Ports;
 using Domain.Videos;
 using SkiaSharp;
 using ZXing;
@@ -8,7 +7,7 @@ using ZXing.SkiaSharp;
 
 namespace Infrastructure;
 
-public class QrCodeDetector : IQrCodeDetector
+internal class QrCodeDetector
 {
     private const int DefaultFrameRate = 5;
     private const double FrameInterval = 0.2;

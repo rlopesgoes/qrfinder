@@ -18,9 +18,10 @@ public class ResultsProcessor(
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            ConsumeResult<string, byte[]>? cr = null;
             try
             {
-                var cr = consumer.Consume(stoppingToken);
+                cr = consumer.Consume(stoppingToken);
                 if (cr is null) continue;
 
                 var videoId = cr.Message.Key!;
@@ -28,11 +29,21 @@ public class ResultsProcessor(
 
                 Console.WriteLine($"[ResultsWorker] Processing results for video: {videoId}");
 
-                var qrCodes = resultData.QrCodes.Select(c => new QrCodeResultDto(
-                    c.Text,
-                    c.TimestampSeconds,
-                    c.FormattedTimestamp,
-                    DateTime.UtcNow)).ToList();
+                if (string.IsNullOrEmpty(resultData.VideoId))
+                {
+                    Console.WriteLine($"[ResultsWorker] Invalid video ID in message, skipping");
+                    consumer.Commit(cr);
+                    continue;
+                }
+
+                var qrCodes = (resultData.QrCodes ?? [])
+                    .Where(c => !string.IsNullOrEmpty(c.Text))
+                    .Select(c => new QrCodeResultDto(
+                        c.Text!,
+                        c.TimestampSeconds,
+                        c.FormattedTimestamp ?? "",
+                        DateTime.UtcNow))
+                    .ToList();
 
                 var videoProcessingResult = new VideoProcessingResult(
                     videoId,
@@ -45,13 +56,28 @@ public class ResultsProcessor(
                 await repository.SaveAsync(videoProcessingResult, stoppingToken);
 
                 Console.WriteLine($"[ResultsWorker] Saved {qrCodes.Count} QR codes for video: {videoId}");
-                consumer.StoreOffset(cr);
-                consumer.Commit();
+                consumer.Commit(cr);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
-                Console.WriteLine($"[ResultsWorker] Error: {ex.Message}");
+                Console.WriteLine($"[ResultsWorker] Error processing message: {ex.Message}");
+                Console.WriteLine($"[ResultsWorker] Exception details: {ex}");
+                
+                if (cr != null)
+                {
+                    try
+                    {
+                        consumer.StoreOffset(cr);
+                        consumer.Commit();
+                        Console.WriteLine($"[ResultsWorker] Committed failed message to avoid reprocessing");
+                    }
+                    catch (Exception commitEx)
+                    {
+                        Console.WriteLine($"[ResultsWorker] Failed to commit after error: {commitEx.Message}");
+                    }
+                }
+                
                 await Task.Delay(1000, stoppingToken);
             }
         }
@@ -59,12 +85,12 @@ public class ResultsProcessor(
 }
 
 public record VideoResultMessage(
-    string VideoId,
+    string? VideoId,
     DateTimeOffset CompletedAt,
     double ProcessingTimeMs,
-    QrCodeMessageDto[] QrCodes);
+    QrCodeMessageDto[]? QrCodes);
 
 public record QrCodeMessageDto(
-    string Text,
+    string? Text,
     double TimestampSeconds,
-    string FormattedTimestamp);
+    string? FormattedTimestamp);

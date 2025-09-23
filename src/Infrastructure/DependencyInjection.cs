@@ -16,7 +16,6 @@ public static class DependencyInjection
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
         services.AddScoped<IResultsPublisher, Infrastructure.Videos.KafkaResultsPublisher>();
-        services.AddScoped<IQrCodeDetector, QrCodeDetector>();
         services.AddScoped<IVideoChunkStorage, Infrastructure.Videos.FileVideoChunkStorage>();
         
         // Domain services (Clean Architecture)

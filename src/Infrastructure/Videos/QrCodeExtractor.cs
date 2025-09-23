@@ -1,17 +1,16 @@
 using Domain.Videos;
 using Domain.Videos.Ports;
-using Application.Videos.Ports;
 
 namespace Infrastructure.Videos;
 
 public class QrCodeExtractor : IQrCodeExtractor
 {
-    private readonly IQrCodeDetector _detector;
+    private readonly QrCodeDetector _detector;
     private readonly string _tempDirectory = Path.Combine(Path.GetTempPath(), "qrfinder", "videos");
 
-    public QrCodeExtractor(IQrCodeDetector detector)
+    public QrCodeExtractor()
     {
-        _detector = detector;
+        _detector = new QrCodeDetector();
         Directory.CreateDirectory(_tempDirectory);
     }
 

@@ -1,6 +1,6 @@
 namespace Domain.Videos;
 
-public enum UploadStage
+public enum VideoProcessingStage
 {
     Uploading,
     Uploaded,

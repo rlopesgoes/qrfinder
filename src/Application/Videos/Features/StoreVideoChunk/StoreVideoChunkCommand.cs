@@ -14,35 +14,45 @@ public class StoreVideoChunkHandler(
 {
     public async Task Handle(StoreVideoChunkCommand request, CancellationToken cancellationToken)
     {
-        var videoId = VideoId.From(request.VideoId);
-        var currentStatus = await statusRepository.GetAsync(request.VideoId, cancellationToken);
-        
-        EnsureVideoCanReceiveChunks(currentStatus);
+        try
+        {
+            var videoId = VideoId.From(request.VideoId);
+            var currentStatus = await statusRepository.GetAsync(request.VideoId, cancellationToken);
+            
+            EnsureVideoCanReceiveChunks(currentStatus);
 
-        await chunkStorage.StoreChunkAsync(videoId, request.ChunkData, cancellationToken);
+            await chunkStorage.StoreChunkAsync(videoId, request.ChunkData, cancellationToken);
 
-        var newReceivedBytes = (currentStatus?.ReceivedBytes ?? 0) + request.ChunkData.Length;
-        var isUploadComplete = newReceivedBytes >= request.TotalExpectedSize;
-        
-        var newStage = isUploadComplete ? UploadStage.Uploaded : UploadStage.Uploading;
-        
-        await statusRepository.UpsertAsync(
-            new UploadStatus(
-                request.VideoId, 
-                newStage,
-                request.SequenceNumber,
-                newReceivedBytes,
-                request.TotalExpectedSize,
-                DateTime.UtcNow), 
-            cancellationToken);
+            var newReceivedBytes = (currentStatus?.ReceivedBytes ?? 0) + request.ChunkData.Length;
+            var isUploadComplete = newReceivedBytes >= request.TotalExpectedSize;
+            
+            var newStage = isUploadComplete ? VideoProcessingStage.Uploaded : VideoProcessingStage.Uploading;
+            
+            await statusRepository.UpsertAsync(
+                new UploadStatus(
+                    request.VideoId, 
+                    newStage,
+                    request.SequenceNumber,
+                    newReceivedBytes,
+                    request.TotalExpectedSize,
+                    DateTime.UtcNow), 
+                cancellationToken);
+        }
+        catch (Exception)
+        {
+            await statusRepository.UpsertAsync(
+                new UploadStatus(request.VideoId, VideoProcessingStage.Failed, -1, 0, 0, DateTime.UtcNow), 
+                cancellationToken);
+            throw;
+        }
     }
 
     private static void EnsureVideoCanReceiveChunks(UploadStatus? currentStatus)
     {
-        if (currentStatus?.Stage == UploadStage.Processing)
+        if (currentStatus?.Stage == VideoProcessingStage.Processing)
             throw new InvalidOperationException("Video is currently being processed and cannot receive new chunks");
             
-        if (currentStatus?.Stage == UploadStage.Processed)
+        if (currentStatus?.Stage == VideoProcessingStage.Processed)
             throw new InvalidOperationException("Video has already been processed and cannot receive new chunks");
     }
 }

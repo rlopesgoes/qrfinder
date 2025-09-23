@@ -2,12 +2,14 @@ using System.Text.Json;
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
 using Confluent.Kafka;
+using Domain.Videos;
 
 namespace ResultsWorker;
 
 public class ResultsProcessor(
     IConsumer<string, byte[]> consumer,
-    IVideoProcessingRepository repository) : BackgroundService
+    IVideoProcessingRepository repository,
+    IVideoStatusRepository statusRepository) : BackgroundService
 {
     private readonly string _topicResults = "videos.results";
 
@@ -68,6 +70,14 @@ public class ResultsProcessor(
                 {
                     try
                     {
+                        var videoId = cr.Message.Key;
+                        if (!string.IsNullOrEmpty(videoId))
+                        {
+                            await statusRepository.UpsertAsync(
+                                new UploadStatus(videoId, VideoProcessingStage.Failed, -1, 0, 0, DateTime.UtcNow), 
+                                stoppingToken);
+                        }
+                        
                         consumer.StoreOffset(cr);
                         consumer.Commit();
                         Console.WriteLine($"[ResultsWorker] Committed failed message to avoid reprocessing");

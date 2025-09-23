@@ -30,11 +30,11 @@ public class ProcessVideoHandler(
         var videoId = VideoId.From(request.VideoId);
         var currentStatus = await videoStatusRepository.GetAsync(request.VideoId, cancellationToken);
         
-        if (currentStatus?.Stage != UploadStage.Uploaded)
+        if (currentStatus?.Stage != VideoProcessingStage.Uploaded)
             throw new InvalidOperationException("Video must be uploaded before processing");
 
         await videoStatusRepository.UpsertAsync(
-            new UploadStatus(request.VideoId, UploadStage.Processing, -1, 0, 0, DateTime.UtcNow), 
+            new UploadStatus(request.VideoId, VideoProcessingStage.Processing, -1, 0, 0, DateTime.UtcNow), 
             cancellationToken);
 
         var startTime = DateTimeOffset.UtcNow;
@@ -53,7 +53,7 @@ public class ProcessVideoHandler(
             var processingTime = DateTimeOffset.UtcNow.Subtract(startTime).TotalMilliseconds;
 
             await videoStatusRepository.UpsertAsync(
-                new UploadStatus(request.VideoId, UploadStage.Processed, -1, 0, 0, DateTime.UtcNow), 
+                new UploadStatus(request.VideoId, VideoProcessingStage.Processed, -1, 0, 0, DateTime.UtcNow), 
                 cancellationToken);
 
             var resultMessage = new
@@ -81,7 +81,7 @@ public class ProcessVideoHandler(
         catch (Exception)
         {
             await videoStatusRepository.UpsertAsync(
-                new UploadStatus(request.VideoId, UploadStage.Failed, -1, 0, 0, DateTime.UtcNow), 
+                new UploadStatus(request.VideoId, VideoProcessingStage.Failed, -1, 0, 0, DateTime.UtcNow), 
                 cancellationToken);
             throw;
         }

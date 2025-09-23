@@ -13,7 +13,7 @@ public sealed class VideoStatusRepository(IMongoDatabase db) : IVideoStatusRepos
     private sealed record UploadStatusDto
     {
         [BsonId] public string VideoId { get; set; } = string.Empty;
-        public UploadStage Stage { get; set; }
+        public VideoProcessingStage Stage { get; set; }
         public int LastSeq { get; set; }
         public long ReceivedBytes { get; set; }
         public long TotalBytes { get; set; }

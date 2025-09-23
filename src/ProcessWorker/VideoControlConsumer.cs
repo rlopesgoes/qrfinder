@@ -26,7 +26,6 @@ public class VideoControlConsumer(
 
                 Console.WriteLine($"[DEBUG] Received control message: videoId={videoId}, messageType={messageType}");
 
-                // Process video and let NotificationService handle Kafka publishing
                 var result = await mediator.Send(new ProcessVideoCommand(videoId, messageType), stoppingToken);
                 
                 Console.WriteLine($"[DEBUG] Processing result: {(result != null ? "SUCCESS" : "NULL")}");

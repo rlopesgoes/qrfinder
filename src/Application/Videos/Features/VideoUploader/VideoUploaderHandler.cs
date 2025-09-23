@@ -11,9 +11,19 @@ public class VideoUploaderHandler(
     IProgressNotifier progressNotifier) 
     : IRequestHandler<VideoUploaderRequest>
 {
-    public Task Handle(VideoUploaderRequest uploaderRequest, CancellationToken cancellationToken)
-        => videoUploader.UploadAsync(uploaderRequest.VideoId, uploaderRequest.TotalBytes, uploaderRequest.Source,
+    public async Task Handle(VideoUploaderRequest uploaderRequest, CancellationToken cancellationToken)
+    {
+        var existingStatus = await videoStatusRepository.GetAsync(uploaderRequest.VideoId, cancellationToken);
+        
+        if (existingStatus?.Stage == UploadStage.Uploaded)
+            throw new InvalidOperationException("Video has already been uploaded");
+            
+        if (existingStatus?.Stage == UploadStage.Processing || existingStatus?.Stage == UploadStage.Processed)
+            throw new InvalidOperationException("Cannot re-upload a video that is being or has been processed");
+
+        await videoUploader.UploadAsync(uploaderRequest.VideoId, uploaderRequest.TotalBytes, uploaderRequest.Source,
             new Observer(videoStatusRepository, progressNotifier), cancellationToken);
+    }
 
     private sealed class Observer(IVideoStatusRepository videoStatusRepository, IProgressNotifier progressNotifier) : IUploadReporter
     {

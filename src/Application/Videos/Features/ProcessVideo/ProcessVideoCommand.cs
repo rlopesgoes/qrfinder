@@ -24,18 +24,15 @@ public class ProcessVideoHandler(
 {
     public async Task<ProcessVideoResponse?> Handle(ProcessVideoCommand request, CancellationToken cancellationToken)
     {
-        Console.WriteLine($"[DEBUG] ProcessVideoHandler.Handle called: videoId={request.VideoId}, messageType={request.MessageType}");
-        
         if (request.MessageType != "completed")
-        {
-            Console.WriteLine($"[DEBUG] Skipping non-completed message: {request.MessageType}");
             return null;
-        }
 
-        Console.WriteLine($"[DEBUG] Processing completed message for videoId={request.VideoId}");
         var videoId = VideoId.From(request.VideoId);
+        var currentStatus = await videoStatusRepository.GetAsync(request.VideoId, cancellationToken);
+        
+        if (currentStatus?.Stage != UploadStage.Uploaded)
+            throw new InvalidOperationException("Video must be uploaded before processing");
 
-        // 1. Update status to Processing
         await videoStatusRepository.UpsertAsync(
             new UploadStatus(request.VideoId, UploadStage.Processing, -1, 0, 0, DateTime.UtcNow), 
             cancellationToken);
@@ -44,29 +41,27 @@ public class ProcessVideoHandler(
         
         try
         {
-            // 2. Extract QR codes from video (encapsulates all technical complexity)
             var qrCodes = await qrCodeExtractor.ExtractFromVideoAsync(videoId, cancellationToken);
+            
+            var uniqueQrCodes = qrCodes
+                .Where(qr => !string.IsNullOrWhiteSpace(qr.Content))
+                .GroupBy(qr => qr.Content)
+                .Select(group => group.OrderBy(qr => qr.DetectedAt.Seconds).First())
+                .OrderBy(qr => qr.DetectedAt.Seconds)
+                .ToList();
 
-            // 3. Calculate metrics
             var processingTime = DateTimeOffset.UtcNow.Subtract(startTime).TotalMilliseconds;
-            var processingMetrics = new ProcessingMetrics(
-                startTime.DateTime, 
-                DateTimeOffset.UtcNow.DateTime, 
-                qrCodes.Count, 
-                TimeSpan.FromMilliseconds(processingTime));
 
-            // 4. Update status to Processed
             await videoStatusRepository.UpsertAsync(
                 new UploadStatus(request.VideoId, UploadStage.Processed, -1, 0, 0, DateTime.UtcNow), 
                 cancellationToken);
 
-            // 5. Publish results
             var resultMessage = new
             {
                 VideoId = request.VideoId,
                 CompletedAt = DateTimeOffset.UtcNow,
                 ProcessingTimeMs = processingTime,
-                QrCodes = qrCodes.Select(qr => new
+                QrCodes = uniqueQrCodes.Select(qr => new
                 {
                     Text = qr.Content,
                     TimestampSeconds = qr.DetectedAt.Seconds,
@@ -76,24 +71,19 @@ public class ProcessVideoHandler(
 
             await resultsPublisher.PublishResultsAsync(request.VideoId, resultMessage, cancellationToken);
 
-            // 6. Return response
-            var response = new ProcessVideoResponse(
+            return new ProcessVideoResponse(
                 VideoId: request.VideoId,
                 CompletedAt: DateTimeOffset.UtcNow,
                 ProcessingTimeMs: processingTime,
-                QrCodes: qrCodes.Select(qr => 
+                QrCodes: uniqueQrCodes.Select(qr => 
                     new QrCodeResponse(qr.Content, qr.FormattedTimestamp)).ToList());
-
-            return response;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            Console.WriteLine($"[ERROR] Processing failed: {ex.Message}");
+            await videoStatusRepository.UpsertAsync(
+                new UploadStatus(request.VideoId, UploadStage.Failed, -1, 0, 0, DateTime.UtcNow), 
+                cancellationToken);
             throw;
-        }
-        finally
-        {
-            // Cleanup is handled internally by QrCodeExtractor
         }
     }
 }

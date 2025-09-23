@@ -23,8 +23,10 @@ public class VideoChunkConsumer(
 
                 var videoId = consumeResult.Message.Key!;
                 var chunkData = consumeResult.Message.Value;
+                var sequenceNumber = (int)(consumeResult.Message.Headers.GetInt64("sequence") ?? 0);
+                var totalSize = consumeResult.Message.Headers.GetInt64("total-size") ?? chunkData.Length;
 
-                await mediator.Send(new StoreVideoChunkCommand(videoId, chunkData), stoppingToken);
+                await mediator.Send(new StoreVideoChunkCommand(videoId, chunkData, sequenceNumber, totalSize), stoppingToken);
                 consumer.Commit(consumeResult);
             }
             catch (OperationCanceledException)

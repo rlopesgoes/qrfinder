@@ -17,6 +17,7 @@ public static class DependencyInjection
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
         services.AddScoped<IResultsPublisher, Infrastructure.Videos.KafkaResultsPublisher>();
         services.AddScoped<IVideoChunkStorage, Infrastructure.Videos.FileVideoChunkStorage>();
+        services.AddScoped<IVideoProgressNotifier, Infrastructure.Notifiers.KafkaVideoProgressNotifier>();
         
         // Domain services (Clean Architecture)
         services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.QrCodeExtractor>();

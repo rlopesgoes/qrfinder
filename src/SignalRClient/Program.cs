@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using SignalRClient;
 
-var hubUrl = "http://localhost:5010/hubs/upload";
-var rawId = args.Length > 0 ? args[0] : "1bad65611d7146749a35aa2d2a89666c";
+var hubUrl = "http://localhost:5010/notificationHub";
+var rawId = args.Length > 0 ? args[0] : "de487486b57d443082b918231f98b759";
 
 var videoId = rawId.Trim().ToLowerInvariant();
 
@@ -11,24 +11,49 @@ var conn = new HubConnectionBuilder()
     .WithAutomaticReconnect()
     .Build();
 
-conn.On<Started>("started", m =>
-    Console.WriteLine($"[{m.VideoId}] START {m.TotalBytes} bytes, stage={m.Stage}"));
+conn.On<VideoProcessingNotification>("progress", notification =>
+{
+    var statusIcon = notification.Stage switch
+    {
+        "UPLOADING" => "📤",
+        "UPLOADED" => "✅",
+        "PROCESSING" => "⚙️",
+        "PROCESSED" => "🎉",
+        "FAILED" => "❌",
+        _ => "📡"
+    };
 
-conn.On<Progress>("progress", m =>
-    Console.WriteLine($"[{m.VideoId}] PROG seq={m.LastSeq} {m.ReceivedBytes}/{m.TotalBytes} ({m.Percent:0.00}%)"));
-
-conn.On<Completed>("completed", m =>
-    Console.WriteLine($"[{m.VideoId}] DONE seq={m.LastSeq} total={m.TotalBytes} ({m.Percent:0.00}%)"));
+    var message = $"{statusIcon} [{notification.VideoId}] {notification.Stage}";
+    
+    if (notification.Percent.HasValue)
+        message += $" ({notification.Percent:0.0}%)";
+    
+    if (!string.IsNullOrEmpty(notification.CurrentOperation))
+        message += $" - {notification.CurrentOperation}";
+    
+    if (!string.IsNullOrEmpty(notification.ErrorMessage))
+        message += $" | ERROR: {notification.ErrorMessage}";
+    
+    message += $" @ {notification.Timestamp:HH:mm:ss}";
+    
+    Console.WriteLine(message);
+});
 
 await conn.StartAsync();
-await conn.InvokeAsync("Join", videoId);  
+await conn.InvokeAsync("JoinVideoGroup", videoId);  
 
-Console.WriteLine($"Conectado ao SignalR. Aguardando eventos de {videoId}. Enter para sair.");
+Console.WriteLine($"🔗 Conectado ao NotificationService em {hubUrl}");
+Console.WriteLine("📋 Estágios: UPLOADING → UPLOADED → PROCESSING → PROCESSED | FAILED");
+Console.WriteLine("⏹️  Pressione Enter para sair...\n");
 Console.ReadLine();
 
 namespace SignalRClient
 {
-    public record Started(string VideoId, string Stage, long TotalBytes, double? Percent);
-    public record Progress(string VideoId, string Stage, long LastSeq, long ReceivedBytes, long TotalBytes, double? Percent);
-    public record Completed(string VideoId, string Stage, long LastSeq, long ReceivedBytes, long TotalBytes, double Percent);
+    public record VideoProcessingNotification(
+        string VideoId,
+        string Stage,
+        double? Percent,
+        string? CurrentOperation,
+        string? ErrorMessage,
+        DateTime Timestamp);
 }

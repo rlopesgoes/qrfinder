@@ -1,5 +1,6 @@
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
+using Application.Videos.Services;
 using Domain.Videos;
 using Domain.Videos.Ports;
 using MediatR;
@@ -19,7 +20,8 @@ public record QrCodeResponse(string Text, string FormattedTimestamp);
 public class ProcessVideoHandler(
     IQrCodeExtractor qrCodeExtractor,
     IVideoStatusRepository videoStatusRepository,
-    IResultsPublisher resultsPublisher)
+    IResultsPublisher resultsPublisher,
+    VideoProgressService progressService)
     : IRequestHandler<ProcessVideoCommand, ProcessVideoResponse?>
 {
     public async Task<ProcessVideoResponse?> Handle(ProcessVideoCommand request, CancellationToken cancellationToken)
@@ -36,6 +38,9 @@ public class ProcessVideoHandler(
         await videoStatusRepository.UpsertAsync(
             new UploadStatus(request.VideoId, VideoProcessingStage.Processing), 
             cancellationToken);
+
+        // Send processing started notification
+        await progressService.StartProcessingAsync(request.VideoId, cancellationToken);
 
         var startTime = DateTimeOffset.UtcNow;
         
@@ -55,6 +60,9 @@ public class ProcessVideoHandler(
             await videoStatusRepository.UpsertAsync(
                 new UploadStatus(request.VideoId, VideoProcessingStage.Processed), 
                 cancellationToken);
+
+            // Send processing completed notification
+            await progressService.CompleteProcessingAsync(request.VideoId, uniqueQrCodes.Count, cancellationToken);
 
             var resultMessage = new
             {
@@ -78,11 +86,15 @@ public class ProcessVideoHandler(
                 QrCodes: uniqueQrCodes.Select(qr => 
                     new QrCodeResponse(qr.Content, qr.FormattedTimestamp)).ToList());
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             await videoStatusRepository.UpsertAsync(
                 new UploadStatus(request.VideoId, VideoProcessingStage.Failed), 
                 cancellationToken);
+
+            // Send processing failed notification
+            await progressService.FailAsync(request.VideoId, ex.Message, cancellationToken);
+            
             throw;
         }
     }

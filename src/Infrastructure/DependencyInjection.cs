@@ -2,6 +2,7 @@ using Application.Videos.Ports;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Infrastructure.Implementations;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
 
@@ -9,7 +10,7 @@ namespace Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration? configuration = null)
     {
         // Application layer services
         services.AddScoped<IVideoUploader, KafkaVideoUploader>();
@@ -22,7 +23,9 @@ public static class DependencyInjection
         // Domain services (Clean Architecture)
         services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.QrCodeExtractor>();
         
-        var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS")!;
+        // Use configuration or fallback to default values
+        var bootstrap = configuration?.GetConnectionString("Kafka") ?? "localhost:9092";
+        
         services.AddSingleton<IProducer<string, byte[]>>(_ =>
             new ProducerBuilder<string, byte[]>(new ProducerConfig 
             {
@@ -34,67 +37,14 @@ public static class DependencyInjection
                 
             }).Build());
         
-        var config = new AdminClientConfig
-        {
-            BootstrapServers = bootstrap
-        };
-
-        using var adminClient = new AdminClientBuilder(config).Build();
-
-        try
-        {
-            adminClient.CreateTopicsAsync(new TopicSpecification[]
-            {
-                new TopicSpecification
-                {
-                    Name = "videos.control",
-                    NumPartitions = 3,
-                    ReplicationFactor = 1
-                }
-            });
-            
-            adminClient.CreateTopicsAsync(new TopicSpecification[]
-            {
-                new TopicSpecification
-                {
-                    Name = "videos.raw-chunks",
-                    NumPartitions = 3,
-                    ReplicationFactor = 1
-                }
-            });
-            
-            adminClient.CreateTopicsAsync(new TopicSpecification[]
-            {
-                new TopicSpecification
-                {
-                    Name = "videos.results",
-                    NumPartitions = 3,
-                    ReplicationFactor = 1
-                }
-            });
-
-            Console.WriteLine("Tópico criado com sucesso.");
-        }
-        catch (CreateTopicsException e)
-        {
-            if (e.Results[0].Error.Code != ErrorCode.TopicAlreadyExists)
-            {
-                Console.WriteLine($"Erro ao criar tópico: {e.Results[0].Error.Reason}");
-            }
-            else
-            {
-                Console.WriteLine("Tópico já existe.");
-            }
-        }
+        // MongoDB configuration from appsettings
+        var mongoConnectionString = configuration?.GetConnectionString("MongoDB") ?? 
+            "mongodb://admin:password123@localhost:27017/qrfinder";
         
-        var mongoUser = Environment.GetEnvironmentVariable("MONGODB_USER")!;
-        var mongoPassword = Environment.GetEnvironmentVariable("MONGODB_PASSWORD")!;
-        var mongoHost = Environment.GetEnvironmentVariable("MONGODB_HOST")!;
-        var mongoPort = Environment.GetEnvironmentVariable("MONGODB_PORT")!;
-        var mongoDb = Environment.GetEnvironmentVariable("MONGODB_DB")!;
-        var connectionString = $"mongodb://{mongoUser}:{mongoPassword}@{mongoHost}:{mongoPort}/{mongoDb}?authSource=admin";
-        services.AddSingleton<IMongoClient>(_ => new MongoClient(connectionString));
-        services.AddSingleton(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(mongoDb));
+        var mongoDatabase = configuration?.GetValue<string>("MongoDB:Database") ?? "qrfinder";
+            
+        services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnectionString));
+        services.AddSingleton(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(mongoDatabase));
         
         return services;
     }

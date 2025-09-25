@@ -1,5 +1,6 @@
 using Application.Videos.Ports;
 using Confluent.Kafka;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 
@@ -12,14 +13,15 @@ namespace Infrastructure.Notifiers;
 public class KafkaVideoProgressNotifier : IVideoProgressNotifier, IDisposable
 {
     private readonly IProducer<Null, string> _producer;
-    private readonly string _topic = "video-notifications";
+    private readonly string _topic;
     private readonly ILogger<KafkaVideoProgressNotifier> _logger;
 
-    public KafkaVideoProgressNotifier(ILogger<KafkaVideoProgressNotifier> logger)
+    public KafkaVideoProgressNotifier(IConfiguration configuration, ILogger<KafkaVideoProgressNotifier> logger)
     {
         _logger = logger;
+        _topic = configuration.GetValue<string>("Kafka:Topic") ?? "video-notifications";
         
-        var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
+        var bootstrap = configuration.GetConnectionString("Kafka") ?? "localhost:9092";
         
         var config = new ProducerConfig
         {

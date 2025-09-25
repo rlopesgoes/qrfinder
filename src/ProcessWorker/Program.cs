@@ -1,18 +1,15 @@
 using Application;
 using Confluent.Kafka;
-using DotNetEnv;
 using Infrastructure;
 using Worker;
 
-Env.TraversePath().Load();
-
 var builder = Host.CreateApplicationBuilder(args);
 
-var bootstrap = "localhost:9092";
-var groupId = "videos-worker-simple";
+var bootstrap = builder.Configuration.GetConnectionString("Kafka") ?? "localhost:9092";
+var groupId = builder.Configuration.GetValue<string>("Kafka:GroupId") ?? "videos-worker-simple";
 Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "qrfinder", "videos"));
 
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
 // Consumer para chunks
 builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ChunkConsumer", (sp, key) =>

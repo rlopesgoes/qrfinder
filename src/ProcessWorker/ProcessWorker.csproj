@@ -10,7 +10,6 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
-    <PackageReference Include="DotNetEnv" Version="3.0.0" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.11" />
     <PackageReference Include="ZXing.Net" Version="0.16.10" />
     <PackageReference Include="ZXing.Net.Bindings.SkiaSharp" Version="0.16.21" />
@@ -22,7 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="..\..\.env" CopyToOutputDirectory="PreserveNewest" />
     <None Remove="Properties\launchSettings.json" />
   </ItemGroup>
 </Project>

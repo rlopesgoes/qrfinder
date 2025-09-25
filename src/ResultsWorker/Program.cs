@@ -1,16 +1,13 @@
 using Confluent.Kafka;
-using DotNetEnv;
 using Infrastructure;
 using ResultsWorker;
 
-Env.TraversePath().Load();
-
 var builder = Host.CreateApplicationBuilder(args);
 
-var bootstrap = "localhost:9092";
-var groupId = "videos-worker-results";
+var bootstrap = builder.Configuration.GetConnectionString("Kafka") ?? "localhost:9092";
+var groupId = builder.Configuration.GetValue<string>("Kafka:GroupId") ?? "videos-worker-results";
 
-builder.Services.AddInfrastructure();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
 {

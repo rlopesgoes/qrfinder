@@ -22,18 +22,9 @@ public class VideoProgressService(
         await progressNotifier.NotifyProgressAsync(videoId, stage.ToString(), progressPercentage, errorMessage, cancellationToken);
     }
 
-    public async Task<VideoProcessingStatus?> GetStatusAsync(string videoId, CancellationToken cancellationToken = default)
+    public async Task<UploadStatus?> GetStatusAsync(string videoId, CancellationToken cancellationToken = default)
     {
-        var uploadStatus = await videoStatusRepository.GetAsync(videoId, cancellationToken);
-        if (uploadStatus == null) return null;
-        
-        return new VideoProcessingStatus(
-            uploadStatus.VideoId,
-            uploadStatus.Stage,
-            CalculateProgressPercentage(uploadStatus.Stage),
-            GetCurrentOperation(uploadStatus.Stage),
-            null,
-            uploadStatus.UpdatedAtUtc);
+        return await videoStatusRepository.GetAsync(videoId, cancellationToken);
     }
 
     // Helper methods for common operations

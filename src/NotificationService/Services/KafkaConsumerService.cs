@@ -1,21 +1,19 @@
 using Confluent.Kafka;
 using NotificationService.Models;
-using NotificationService.Services;
 using System.Text.Json;
 
 namespace NotificationService.Services;
 
 public class KafkaConsumerService(
     IServiceProvider serviceProvider,
-    IConfiguration configuration,
     ILogger<KafkaConsumerService> logger)
     : BackgroundService
 {
-    private readonly string _topic = configuration.GetValue<string>("Kafka:Topic") ?? "video-notifications";
+    private readonly string _topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? "video-notifications";
     private readonly ConsumerConfig _consumerConfig = new()
     {
-        BootstrapServers = configuration.GetConnectionString("Kafka") ?? "localhost:9092",
-        GroupId = configuration.GetValue<string>("Kafka:GroupId") ?? "notification-service",
+        BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092",
+        GroupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "notification-service", 
         AutoOffsetReset = AutoOffsetReset.Earliest,
         EnableAutoCommit = false
     };

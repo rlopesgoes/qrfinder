@@ -1,21 +1,19 @@
 using Application.Videos.Ports;
 using Azure.Storage.Blobs;
-using Azure.Storage.Blobs.Models;
-using Microsoft.Extensions.Configuration;
+using Infrastructure.Configuration;
+using Microsoft.Extensions.Options;
 
 namespace Infrastructure.Services;
 
 public sealed class BlobStorageService : IBlobStorageService
 {
-    private readonly BlobServiceClient _blobServiceClient;
     private readonly BlobContainerClient _containerClient;
-    private const string ContainerName = "videos";
 
-    public BlobStorageService(IConfiguration configuration)
+    public BlobStorageService(IOptions<BlobStorageOptions> options)
     {
-        var connectionString = configuration.GetConnectionString("AzureStorage");
-        _blobServiceClient = new BlobServiceClient(connectionString);
-        _containerClient = _blobServiceClient.GetBlobContainerClient(ContainerName);
+        var config = options.Value;
+        var blobServiceClient = new BlobServiceClient(config.ConnectionString);
+        _containerClient = blobServiceClient.GetBlobContainerClient(config.ContainerName);
     }
 
     public async Task UploadChunkAsync(string videoId, int chunkIndex, byte[] chunkData, CancellationToken cancellationToken = default)

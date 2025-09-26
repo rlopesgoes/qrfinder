@@ -1,7 +1,8 @@
 using Application.Videos.Ports;
 using Confluent.Kafka;
-using Microsoft.Extensions.Configuration;
+using Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace Infrastructure.Notifiers;
@@ -16,21 +17,20 @@ public class KafkaVideoProgressNotifier : IVideoProgressNotifier, IDisposable
     private readonly string _topic;
     private readonly ILogger<KafkaVideoProgressNotifier> _logger;
 
-    public KafkaVideoProgressNotifier(IConfiguration configuration, ILogger<KafkaVideoProgressNotifier> logger)
+    public KafkaVideoProgressNotifier(IOptions<KafkaOptions> kafkaOptions, ILogger<KafkaVideoProgressNotifier> logger)
     {
         _logger = logger;
-        _topic = configuration.GetValue<string>("Kafka:Topic") ?? "video-notifications";
+        var config = kafkaOptions.Value;
+        _topic = config.Topic;
         
-        var bootstrap = configuration.GetConnectionString("Kafka") ?? "localhost:9092";
-        
-        var config = new ProducerConfig
+        var producerConfig = new ProducerConfig
         {
-            BootstrapServers = bootstrap,
+            BootstrapServers = config.BootstrapServers,
             Acks = Acks.All,
             MessageTimeoutMs = 30000,
         };
 
-        _producer = new ProducerBuilder<Null, string>(config).Build();
+        _producer = new ProducerBuilder<Null, string>(producerConfig).Build();
         
         _logger.LogInformation("Kafka video progress notifier initialized. Topic: {Topic}", _topic);
     }

@@ -1,10 +1,11 @@
 using Application.Videos.Ports;
 using Confluent.Kafka;
-using Confluent.Kafka.Admin;
+using Infrastructure.Configuration;
 using Infrastructure.Implementations;
 using Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Infrastructure;
@@ -13,40 +14,67 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration? configuration = null)
     {
-        // Application layer services
+        // Configure options with environment variable overrides
+        services.Configure<KafkaOptions>(options =>
+        {
+            options.BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? 
+                                      configuration?.GetConnectionString("Kafka") ?? 
+                                      options.BootstrapServers;
+            options.Topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? 
+                           configuration?.GetValue<string>("Kafka:Topic") ?? 
+                           options.Topic;
+        });
+
+        services.Configure<MongoDbOptions>(options =>
+        {
+            options.ConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? 
+                                      configuration?.GetConnectionString("MongoDB") ?? 
+                                      options.ConnectionString;
+            options.Database = Environment.GetEnvironmentVariable("MONGODB_DATABASE") ?? 
+                              configuration?.GetValue<string>("MongoDB:Database") ?? 
+                              options.Database;
+        });
+
+        services.Configure<BlobStorageOptions>(options =>
+        {
+            options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? 
+                                      configuration?.GetConnectionString("AzureStorage") ?? 
+                                      options.ConnectionString;
+        });
+
+        // Register services
         services.AddScoped<IVideoUploader, BlobVideoUploader>();
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
-        services.AddScoped<IResultsPublisher, Infrastructure.Videos.KafkaResultsPublisher>();
-        services.AddScoped<IVideoChunkStorage, Infrastructure.Videos.FileVideoChunkStorage>();
-        services.AddScoped<IVideoProgressNotifier, Infrastructure.Notifiers.KafkaVideoProgressNotifier>();
+        services.AddScoped<IResultsPublisher, Videos.KafkaResultsPublisher>();
+        services.AddScoped<IVideoChunkStorage, Videos.FileVideoChunkStorage>();
+        services.AddScoped<IVideoProgressNotifier, Notifiers.KafkaVideoProgressNotifier>();
         services.AddScoped<IBlobStorageService, BlobStorageService>();
+        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Videos.BlobQrCodeExtractor>();
         
-        // Domain services (Clean Architecture)
-        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.BlobQrCodeExtractor>();
+        // Register MongoDB
+        services.AddSingleton<IMongoClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<MongoDbOptions>>();
+            return new MongoClient(options.Value.ConnectionString);
+        });
+        services.AddSingleton(sp =>
+        {
+            var mongoClient = sp.GetRequiredService<IMongoClient>();
+            var options = sp.GetRequiredService<IOptions<MongoDbOptions>>();
+            return mongoClient.GetDatabase(options.Value.Database);
+        });
         
-        // Use configuration or fallback to default values
-        var bootstrap = configuration?.GetConnectionString("Kafka") ?? "localhost:9092";
-        
-        services.AddSingleton<IProducer<string, byte[]>>(_ =>
-            new ProducerBuilder<string, byte[]>(new ProducerConfig 
+        // Register Kafka Producer  
+        services.AddSingleton<IProducer<string, byte[]>>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<KafkaOptions>>();
+            var config = new ProducerConfig
             {
-                BootstrapServers = bootstrap, 
-                Acks = Acks.All, 
-                EnableIdempotence = true, 
-                LingerMs = 0,
-                BatchSize = 524288,        // 512 KB (igual ao ChunkSize)
-                
-            }).Build());
-        
-        // MongoDB configuration from appsettings
-        var mongoConnectionString = configuration?.GetConnectionString("MongoDB") ?? 
-            "mongodb://admin:password123@localhost:27017/qrfinder";
-        
-        var mongoDatabase = configuration?.GetValue<string>("MongoDB:Database") ?? "qrfinder";
-            
-        services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoConnectionString));
-        services.AddSingleton(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(mongoDatabase));
+                BootstrapServers = options.Value.BootstrapServers
+            };
+            return new ProducerBuilder<string, byte[]>(config).Build();
+        });
         
         return services;
     }

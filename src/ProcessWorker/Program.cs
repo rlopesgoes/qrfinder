@@ -2,38 +2,19 @@ using Application;
 using Confluent.Kafka;
 using Infrastructure;
 using Infrastructure.Telemetry;
-using Serilog;
-using Serilog.Enrichers.OpenTelemetry;
 using Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Configure telemetry (tracing + logging) 
-builder.Services.AddTelemetry(builder.Configuration, "ProcessWorker");
-
-// Configure Serilog manually for HostApplicationBuilder
-var seqUrl = builder.Configuration.GetConnectionString("Seq") ?? "http://localhost:5342";
-
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(builder.Configuration)
-    .Enrich.WithProperty("ServiceName", "ProcessWorker")
-    .Enrich.WithOpenTelemetryTraceId()
-    .Enrich.WithOpenTelemetrySpanId()
-    .WriteTo.Console(outputTemplate: 
-        "[{Timestamp:HH:mm:ss} {Level:u3}] ProcessWorker | TraceId: {TraceId} | SpanId: {SpanId} | {Message:lj}{NewLine}{Exception}")
-    .WriteTo.Seq(seqUrl)
-    .CreateLogger();
-
-builder.Logging.ClearProviders().AddSerilog();
+// Configure observability (logging + tracing) - centralized
+builder.Services.AddObservability(builder.Configuration);
 
 var bootstrap = builder.Configuration.GetConnectionString("Kafka") ?? "localhost:9092";
 var groupId = builder.Configuration.GetValue<string>("Kafka:GroupId") ?? "videos-worker-simple";
-Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "qrfinder", "videos"));
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
 
-// Consumer para control
 builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ControlConsumer", (sp, key) =>
 {
     var conf = new ConsumerConfig

@@ -2,7 +2,7 @@
 using SignalRClient;
 
 var hubUrl = "http://localhost:5010/notificationHub";
-var rawId = args.Length > 0 ? args[0] : "20317c6a8a864f869961d8f5af956ffe";
+var rawId = args.Length > 0 ? args[0] : "7a04c191bd1f4caea645371ae39e1ad5";
 
 var videoId = rawId.Trim().ToLowerInvariant();
 

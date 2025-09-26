@@ -8,62 +8,42 @@ public static class KafkaTraceContextPropagator
 {
     private const string TraceParentHeaderName = "traceparent";
     private const string TraceStateHeaderName = "tracestate";
-
-    /// <summary>
-    /// Injeta o trace context atual nos headers da mensagem Kafka
-    /// </summary>
+    
     public static void InjectTraceContext(Headers headers)
     {
         var activity = Activity.Current;
         if (activity == null) return;
-
-        // Inject traceparent header (W3C format)
+        
         var traceFlags = (int)(activity.ActivityTraceFlags & ActivityTraceFlags.Recorded);
         var traceParent = $"00-{activity.TraceId}-{activity.SpanId}-{traceFlags:x2}";
         headers.Add(TraceParentHeaderName, Encoding.UTF8.GetBytes(traceParent));
-
-        // Inject tracestate header if present
+        
         if (!string.IsNullOrEmpty(activity.TraceStateString))
-        {
             headers.Add(TraceStateHeaderName, Encoding.UTF8.GetBytes(activity.TraceStateString));
-        }
-
-        // Add custom headers for easier debugging
+        
         headers.Add("x-trace-id", Encoding.UTF8.GetBytes(activity.TraceId.ToString()));
         headers.Add("x-span-id", Encoding.UTF8.GetBytes(activity.SpanId.ToString()));
     }
-
-    /// <summary>
-    /// Extrai o trace context dos headers da mensagem Kafka e inicia uma nova atividade
-    /// </summary>
+    
     public static Activity? ExtractAndStartActivity(Headers headers, string operationName)
     {
         var activitySource = new ActivitySource("QrFinder.Kafka");
         
-        // Extract traceparent header
         var traceParentHeader = headers.FirstOrDefault(h => h.Key == TraceParentHeaderName);
         if (traceParentHeader?.GetValueBytes() == null)
-        {
-            // No trace context, start new trace
             return activitySource.StartActivity(operationName);
-        }
 
         var traceParent = Encoding.UTF8.GetString(traceParentHeader.GetValueBytes());
         if (TryParseTraceParent(traceParent, out var traceId, out var parentSpanId, out var traceFlags))
         {
-            // Create activity with parent context
             var parentContext = new ActivityContext(traceId, parentSpanId, traceFlags);
-            
-            // Extract tracestate if present
             var traceStateHeader = headers.FirstOrDefault(h => h.Key == TraceStateHeaderName);
             var traceState = traceStateHeader?.GetValueBytes() != null 
                 ? Encoding.UTF8.GetString(traceStateHeader.GetValueBytes()) 
                 : null;
 
             if (!string.IsNullOrEmpty(traceState))
-            {
                 parentContext = new ActivityContext(traceId, parentSpanId, traceFlags, traceState);
-            }
 
             return activitySource.StartActivity(operationName, ActivityKind.Consumer, parentContext);
         }

@@ -3,7 +3,6 @@ using Application.Videos.UseCases.ProcessVideo;
 using Confluent.Kafka;
 using Infrastructure.Telemetry;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Worker;
 

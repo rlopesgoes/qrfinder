@@ -1,8 +1,12 @@
 using Confluent.Kafka;
 using Infrastructure;
+using Infrastructure.Telemetry;
 using ResultsWorker;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Configure observability (logging + tracing) - centralized
+builder.Services.AddObservability(builder.Configuration);
 
 var bootstrap = builder.Configuration.GetConnectionString("Kafka") ?? "localhost:9092";
 var groupId = builder.Configuration.GetValue<string>("Kafka:GroupId") ?? "videos-worker-results";

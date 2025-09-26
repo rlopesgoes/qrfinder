@@ -1,9 +1,13 @@
+using Infrastructure.Telemetry;
 using NotificationService.Channels;
 using NotificationService.Hubs;
-using NotificationService.Models;
 using NotificationService.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure observability (logging + tracing) - centralized
+builder.Host.UseLogging();
+builder.Services.AddObservability(builder.Configuration);
 
 // Configure URLs from appsettings.json or default
 var urls = builder.Configuration.GetValue<string>("Urls") ?? "http://localhost:5010";

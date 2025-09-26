@@ -11,22 +11,6 @@ Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), "qrfinder", "videos")
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();
-// Consumer para chunks
-builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ChunkConsumer", (sp, key) =>
-{
-    var conf = new ConsumerConfig
-    {
-        BootstrapServers = bootstrap,
-        GroupId = groupId + "-chunks",
-        EnableAutoCommit = false,
-        AutoOffsetReset = AutoOffsetReset.Earliest,
-        PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky,
-        FetchMaxBytes = 2 * 1024 * 1024,
-        MaxPartitionFetchBytes = 2 * 1024 * 1024,
-        QueuedMaxMessagesKbytes = 1024
-    };
-    return new ConsumerBuilder<string, byte[]>(conf).Build();
-});
 
 // Consumer para control
 builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ControlConsumer", (sp, key) =>
@@ -42,7 +26,6 @@ builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ControlConsumer",
     return new ConsumerBuilder<string, byte[]>(conf).Build();
 });
 
-builder.Services.AddHostedService<VideoChunkConsumer>();
 builder.Services.AddHostedService<VideoControlConsumer>();
 
 builder.Services.AddSingleton<IProducer<string, byte[]>>(_ =>

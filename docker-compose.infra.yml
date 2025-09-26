@@ -82,8 +82,23 @@ services:
     networks:
       - qrfinder-network
 
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: qrfinder-azurite
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose"
+    volumes:
+      - azurite_data:/data
+    networks:
+      - qrfinder-network
+
+
 volumes:
   mongo_data:
+  azurite_data:
 
 networks:
   qrfinder-network:

@@ -2,6 +2,7 @@ using Application.Videos.Ports;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Infrastructure.Implementations;
+using Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using MongoDB.Driver;
@@ -13,15 +14,16 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration? configuration = null)
     {
         // Application layer services
-        services.AddScoped<IVideoUploader, KafkaVideoUploader>();
+        services.AddScoped<IVideoUploader, BlobVideoUploader>();
         services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
         services.AddScoped<IResultsPublisher, Infrastructure.Videos.KafkaResultsPublisher>();
         services.AddScoped<IVideoChunkStorage, Infrastructure.Videos.FileVideoChunkStorage>();
         services.AddScoped<IVideoProgressNotifier, Infrastructure.Notifiers.KafkaVideoProgressNotifier>();
+        services.AddScoped<IBlobStorageService, BlobStorageService>();
         
         // Domain services (Clean Architecture)
-        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.QrCodeExtractor>();
+        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.BlobQrCodeExtractor>();
         
         // Use configuration or fallback to default values
         var bootstrap = configuration?.GetConnectionString("Kafka") ?? "localhost:9092";

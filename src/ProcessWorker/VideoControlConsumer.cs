@@ -1,12 +1,16 @@
+using System.Diagnostics;
 using Application.Videos.UseCases.ProcessVideo;
 using Confluent.Kafka;
+using Infrastructure.Telemetry;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Worker;
 
 public class VideoControlConsumer(
     [FromKeyedServices("ControlConsumer")] IConsumer<string, byte[]> consumer,
-    IMediator mediator) : BackgroundService
+    IMediator mediator,
+    ILogger<VideoControlConsumer> logger) : BackgroundService
 {
     private readonly string _topicControl = "videos.control";
 
@@ -24,17 +28,40 @@ public class VideoControlConsumer(
                 var videoId = consumeResult.Message.Key!;
                 var messageType = consumeResult.Message.Headers.GetUtf8("type");
 
-                Console.WriteLine($"[DEBUG] Received control message: videoId={videoId}, messageType={messageType}");
-
-                var result = await mediator.Send(new ProcessVideoCommand(videoId, messageType), stoppingToken);
+                // Extract trace context and start new activity
+                using var activity = KafkaTraceContextPropagator.ExtractAndStartActivity(
+                    consumeResult.Message.Headers, 
+                    $"ProcessVideoControl.{messageType}");
                 
-                Console.WriteLine($"[DEBUG] Processing result: {(result != null ? "SUCCESS" : "NULL")}");
-                if (result != null)
-                {
-                    Console.WriteLine($"[DEBUG] QR codes found: {result.QrCodes.Count}");
-                }
+                activity?.SetTag("video.id", videoId);
+                activity?.SetTag("message.type", messageType);
 
-                consumer.Commit(consumeResult);
+                logger.LogInformation("Received control message for {VideoId}: {MessageType}", videoId, messageType);
+
+                try
+                {
+                    var result = await mediator.Send(new ProcessVideoCommand(videoId, messageType), stoppingToken);
+                    
+                    if (result != null)
+                    {
+                        logger.LogInformation("Processing completed for {VideoId}. QR codes found: {QrCount}", 
+                            videoId, result.QrCodes.Count);
+                        activity?.SetStatus(ActivityStatusCode.Ok);
+                    }
+                    else
+                    {
+                        logger.LogInformation("Processing skipped for {VideoId} (message type: {MessageType})", 
+                            videoId, messageType);
+                    }
+
+                    consumer.Commit(consumeResult);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error processing video {VideoId}", videoId);
+                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    throw;
+                }
             }
             catch (OperationCanceledException)
             {

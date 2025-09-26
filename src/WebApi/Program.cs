@@ -1,10 +1,15 @@
 using Application;
 using Infrastructure;
+using Infrastructure.Telemetry;
 using Microsoft.OpenApi.Models;
 using WebApi.Endpoints;
 using WebApi.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure telemetry (tracing + logging)
+builder.Host.ConfigureLogging();
+builder.Services.AddTelemetry(builder.Configuration, "WebApi");
 
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddApplication();

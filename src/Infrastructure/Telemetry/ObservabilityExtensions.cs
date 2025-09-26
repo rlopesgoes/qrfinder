@@ -12,9 +12,9 @@ namespace Infrastructure.Telemetry;
 
 public static class ObservabilityExtensions
 {
-    public static IServiceCollection AddObservability(this IServiceCollection services, IConfiguration configuration)
+    public static IServiceCollection AddObservability(this IServiceCollection services)
     {
-        var observabilityConfig = GetObservabilityConfig(configuration);
+        var observabilityConfig = GetObservabilityConfig();
         
         ConfigureLogging(observabilityConfig);
         services.AddLogging(builder => builder.ClearProviders().AddSerilog());
@@ -24,19 +24,17 @@ public static class ObservabilityExtensions
         return services;
     }
     
-    private static ObservabilityConfig GetObservabilityConfig(IConfiguration configuration)
+    private static ObservabilityConfig GetObservabilityConfig()
     {
-        var serviceName = configuration.GetValue<string>("AppName") ?? 
-                         Environment.GetEnvironmentVariable("SERVICE_NAME") ?? 
-                         "QrFinder";
+        var serviceName = Environment.GetEnvironmentVariable("SERVICE_NAME") ?? "QrFinder";
                          
         return new ObservabilityConfig
         {
             ServiceName = serviceName,
             SeqUrl = Environment.GetEnvironmentVariable("SEQ_URL") ?? "http://localhost:5342",
             JaegerOtlpUrl = Environment.GetEnvironmentVariable("JAEGER_OTLP_URL") ?? "http://localhost:4318/v1/traces",
-            EnableConsoleExporter = configuration.GetValue<bool>("Observability:EnableConsoleExporter", true),
-            EnableResourceLogging = configuration.GetValue<bool>("Observability:EnableResourceLogging", false)
+            EnableConsoleExporter = Environment.GetEnvironmentVariable("ENABLE_CONSOLE_EXPORTER") == "true",
+            EnableResourceLogging = Environment.GetEnvironmentVariable("ENABLE_RESOURCE_LOGGING") == "true"
         };
     }
     

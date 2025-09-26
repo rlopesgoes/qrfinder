@@ -12,34 +12,24 @@ namespace Infrastructure;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration? configuration = null)
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
         // Configure options with environment variable overrides
         services.Configure<KafkaOptions>(options =>
         {
-            options.BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? 
-                                      configuration?.GetConnectionString("Kafka") ?? 
-                                      options.BootstrapServers;
-            options.Topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? 
-                           configuration?.GetValue<string>("Kafka:Topic") ?? 
-                           options.Topic;
+            options.BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? options.BootstrapServers;
+            options.Topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? options.Topic;
         });
 
         services.Configure<MongoDbOptions>(options =>
         {
-            options.ConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? 
-                                      configuration?.GetConnectionString("MongoDB") ?? 
-                                      options.ConnectionString;
-            options.Database = Environment.GetEnvironmentVariable("MONGODB_DATABASE") ?? 
-                              configuration?.GetValue<string>("MongoDB:Database") ?? 
-                              options.Database;
+            options.ConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? options.ConnectionString;
+            options.Database = Environment.GetEnvironmentVariable("MONGODB_DATABASE") ?? options.Database;
         });
 
         services.Configure<BlobStorageOptions>(options =>
         {
-            options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? 
-                                      configuration?.GetConnectionString("AzureStorage") ?? 
-                                      options.ConnectionString;
+            options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? options.ConnectionString;
         });
 
         // Register services

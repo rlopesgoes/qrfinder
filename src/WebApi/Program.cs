@@ -8,8 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure observability (logging + tracing) - centralized
 builder.Host.UseLogging();
-builder.Services.AddObservability(builder.Configuration);
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddObservability();
+builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
 
 builder.Services.AddEndpointsApiExplorer();

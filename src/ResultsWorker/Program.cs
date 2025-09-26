@@ -6,12 +6,12 @@ using ResultsWorker;
 var builder = Host.CreateApplicationBuilder(args);
 
 // Configure observability (logging + tracing) - centralized
-builder.Services.AddObservability(builder.Configuration);
+builder.Services.AddObservability();
 
-var bootstrap = builder.Configuration.GetConnectionString("Kafka") ?? "localhost:9092";
-var groupId = builder.Configuration.GetValue<string>("Kafka:GroupId") ?? "videos-worker-results";
+var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
+var groupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "videos-worker-results";
 
-builder.Services.AddInfrastructure(builder.Configuration);
+builder.Services.AddInfrastructure();
 
 builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
 {

@@ -7,10 +7,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure observability (logging + tracing) - centralized
 builder.Host.UseLogging();
-builder.Services.AddObservability(builder.Configuration);
+builder.Services.AddObservability();
 
-// Configure URLs from appsettings.json or default
-var urls = builder.Configuration.GetValue<string>("Urls") ?? "http://localhost:5010";
+// Configure URLs from environment or default
+var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5010";
 builder.WebHost.UseUrls(urls);
 
 // Add services

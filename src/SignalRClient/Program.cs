@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using SignalRClient;
 
-var hubUrl = "http://localhost:5001/notificationHub";
-var rawId = args.Length > 0 ? args[0] : "4d4e2eb3-a944-4ec9-ad50-6bebebe9f180";
+var hubUrl = "http://localhost:5010/notificationHub";
+var rawId = args.Length > 0 ? args[0] : "1080a0b2-827e-406e-8346-75eec3add4ce";
 
 var videoId = rawId.Trim().ToLowerInvariant();
 

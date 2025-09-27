@@ -9,6 +9,8 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
+using NotificationService.Channels;
+using NotificationService.Services;
 
 namespace Infrastructure;
 
@@ -40,6 +42,7 @@ public static class DependencyInjection
 
         services.AddScoped<IUploadLinkGenerator, UploadLinkGenerator>();
         services.AddScoped<IVideoAnalysisQueue, KafkaVideoAnalysisQueue>();
+        services.AddScoped<INotificationChannel, SignalRServerChannel>();
         
         // Register MongoDB
         services.AddSingleton<IMongoClient>(sp =>

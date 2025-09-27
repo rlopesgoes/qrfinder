@@ -1,6 +1,6 @@
 using Domain.Common;
 
-namespace Application;
+namespace Application.Videos.Ports;
 
 public interface IUploadLinkGenerator
 {

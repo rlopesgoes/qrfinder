@@ -2,8 +2,8 @@ using Application;
 using Confluent.Kafka;
 using Infrastructure;
 using Infrastructure.Telemetry;
-using ProcessWorker.Configuration;
 using Worker;
+using Worker.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
 

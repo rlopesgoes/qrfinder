@@ -1,9 +1,8 @@
+using Application.Videos.Ports;
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
-using NotificationService.Services;
-using NotificationService.Models;
 
-namespace NotificationService.Channels;
+namespace Infrastructure;
 
 public class SignalRServerChannel : INotificationChannel, IDisposable
 {

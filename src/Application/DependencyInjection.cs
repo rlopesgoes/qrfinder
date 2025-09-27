@@ -9,9 +9,6 @@ public static class DependencyInjection
     {
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(typeof(AssemblyReference).Assembly));
         
-        // Add application services
-       // services.AddScoped<VideoProgressService>();
-        
         return services;
     }
 }

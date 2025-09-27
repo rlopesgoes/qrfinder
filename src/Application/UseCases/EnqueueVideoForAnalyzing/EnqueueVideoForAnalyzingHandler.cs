@@ -1,9 +1,9 @@
 using Application.Videos.Ports;
 using Domain.Common;
-using Domain.Videos;
 using MediatR;
+using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 
-namespace Application.UseCases;
+namespace Application.UseCases.EnqueueVideoForAnalyzing;
 
 public class EnqueueVideoForAnalyzingHandler(
     IAnalysisStatusRepository analysisStatusRepository,

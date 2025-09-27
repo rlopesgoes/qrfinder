@@ -1,8 +1,10 @@
+
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
 using Domain.Common;
 using Domain.Videos;
 using MediatR;
+using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 
 namespace Application.UseCases.GenerateUploadLink;
 

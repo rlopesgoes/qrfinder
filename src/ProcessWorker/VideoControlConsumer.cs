@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Application.Videos.UseCases.ProcessVideo;
+using Application.UseCases.ScanQrCode;
 using Confluent.Kafka;
 using MediatR;
 

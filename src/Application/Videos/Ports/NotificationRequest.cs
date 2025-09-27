@@ -1,4 +1,6 @@
-namespace NotificationService.Models;
+using Domain.Videos;
+
+namespace Application.Videos.Ports;
 
 public record NotificationRequest(
     string VideoId,
@@ -7,13 +9,3 @@ public record NotificationRequest(
     string? Message = null,
     DateTime Timestamp = default);
 
-public enum VideoProcessingStage
-{
-    Created,
-    Sent,
-    Uploading,
-    Uploaded,
-    Processing,
-    Processed,
-    Failed
-}

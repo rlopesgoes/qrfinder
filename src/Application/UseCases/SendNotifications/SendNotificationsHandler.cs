@@ -1,8 +1,8 @@
+using Application.Videos.Ports;
 using Domain.Common;
+using Domain.Videos;
 using MediatR;
 using Microsoft.Extensions.Logging;
-using NotificationService.Models;
-using NotificationService.Services;
 
 namespace Application.UseCases.SendNotifications;
 

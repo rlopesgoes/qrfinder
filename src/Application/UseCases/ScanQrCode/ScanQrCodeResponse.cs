@@ -1,4 +1,4 @@
-namespace Application.Videos.UseCases.ProcessVideo;
+namespace Application.UseCases.ScanQrCode;
 
 public record ScanQrCodeResponse(
     string VideoId,

@@ -1,19 +1,20 @@
 using Application.Videos.Ports;
+using Domain.Common;
 using MediatR;
 
 namespace Application.Videos.Features.GetVideoResults;
 
 public class GetVideoResultsHandler(IVideoProcessingRepository repository) 
-    : IRequestHandler<GetVideoResultsRequest, GetVideoResultsResponse?>
+    : IRequestHandler<GetVideoResultsQuery, Result<GetVideoResultsResult>>
 {
-    public async Task<GetVideoResultsResponse?> Handle(GetVideoResultsRequest request, CancellationToken cancellationToken)
+    public async Task<Result<GetVideoResultsResult>> Handle(GetVideoResultsQuery query, CancellationToken cancellationToken)
     {
-        var videoProcessing = await repository.GetByVideoIdAsync(request.VideoId, cancellationToken);
-        
-        if (videoProcessing == null)
-            return null;
+        var videoProcessingResult = await repository.GetByVideoIdAsync(query.VideoId, cancellationToken);
+        if (!videoProcessingResult.IsSuccess)
+            return Result<GetVideoResultsResult>.FromResult(videoProcessingResult);
+        var videoProcessing = videoProcessingResult.Value!;
 
-        return new GetVideoResultsResponse(
+        return new GetVideoResultsResult(
             videoProcessing.VideoId,
             videoProcessing.Status,
             videoProcessing.CompletedAt,

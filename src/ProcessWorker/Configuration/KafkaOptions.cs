@@ -1,4 +1,4 @@
-namespace ProcessWorker.Configuration;
+namespace Worker.Configuration;
 
 public sealed class KafkaOptions
 {

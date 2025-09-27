@@ -2,7 +2,7 @@ using Confluent.Kafka;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application.UseCases.SendNotifications;
-using NotificationService.Models;
+using Application.Videos.Ports;
 using MediatR;
 using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 

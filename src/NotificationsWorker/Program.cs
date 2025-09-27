@@ -1,10 +1,8 @@
 using Confluent.Kafka;
 using Infrastructure;
 using Infrastructure.Telemetry;
-using NotificationService.Channels;
 using NotificationService.Services;
-using NotificationsWorker.Configuration;
-using MediatR;
+using NotificationService.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -13,7 +11,6 @@ builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection(KafkaO
 builder.Services.AddInfrastructure();
 builder.Services.AddObservability();
 
-// Add MediatR and register the specific handler we need
 builder.Services.AddMediatR(cfg => 
 {
     cfg.RegisterServicesFromAssemblyContaining<Application.UseCases.SendNotifications.SendNotificationsHandler>();

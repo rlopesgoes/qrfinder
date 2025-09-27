@@ -1,25 +1,32 @@
+using Application.Videos.Features.GetVideoResults;
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
+using Domain.Common;
 using MongoDB.Driver;
 
 namespace Infrastructure.Implementations;
 
-public class VideoProcessingRepository : IVideoProcessingRepository
+public class VideoProcessingRepository(IMongoDatabase database) : IVideoProcessingRepository
 {
-    private readonly IMongoCollection<VideoProcessingDocument> _collection;
+    private readonly IMongoCollection<VideoProcessingDocument> _collection = database.GetCollection<VideoProcessingDocument>("video_processing");
 
-    public VideoProcessingRepository(IMongoDatabase database)
+    public async Task<Result<VideoProcessingResult>> GetByVideoIdAsync(string videoId, CancellationToken cancellationToken = default)
     {
-        _collection = database.GetCollection<VideoProcessingDocument>("video_processing");
-    }
+        try
+        {
+            var document = await _collection
+                .Find(x => x.VideoId == videoId)
+                .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<VideoProcessingResult?> GetByVideoIdAsync(string videoId, CancellationToken cancellationToken = default)
-    {
-        var document = await _collection
-            .Find(x => x.VideoId == videoId)
-            .FirstOrDefaultAsync(cancellationToken);
-
-        return document?.ToResult();
+            if (document is null)
+                return Result<VideoProcessingResult>.NoContent();
+            
+            return document!.ToResult();
+        }
+        catch (Exception e)
+        {
+            return e;
+        }
     }
 
     public async Task SaveAsync(VideoProcessingResult videoProcessing, CancellationToken cancellationToken = default)
@@ -69,7 +76,7 @@ public class VideoProcessingRepository : IVideoProcessingRepository
                 StartedAt,
                 CompletedAt,
                 QrCodes.Count,
-                QrCodes.Select(qr => new QrCodeResultDto(
+                QrCodes.Select(qr => new QrCodeResult(
                     qr.Text,
                     qr.TimestampSeconds,
                     qr.FormattedTimestamp,

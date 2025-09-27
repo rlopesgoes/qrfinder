@@ -1,4 +1,4 @@
-namespace NotificationsWorker.Configuration;
+namespace NotificationService.Configuration;
 
 public sealed class KafkaOptions
 {

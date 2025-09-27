@@ -1,6 +1,4 @@
-using NotificationService.Models;
-
-namespace NotificationService.Services;
+namespace Application.Videos.Ports;
 
 /// <summary>
 /// Interface for notification channels (SignalR, Webhooks, SMS, etc.)

@@ -3,6 +3,6 @@
 using Domain.Common;
 using MediatR;
 
-namespace Application.Videos.UseCases.ProcessVideo;
+namespace Application.UseCases.ScanQrCode;
 
 public record ScanQrCodeCommand(string VideoId) : IRequest<Result<ScanQrCodeResponse>>;

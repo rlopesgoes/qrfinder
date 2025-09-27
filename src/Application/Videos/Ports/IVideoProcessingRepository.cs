@@ -1,10 +1,12 @@
+using Application.Videos.Features.GetVideoResults;
 using Application.Videos.Ports.Dtos;
+using Domain.Common;
 
 namespace Application.Videos.Ports;
 
 public interface IVideoProcessingRepository
 {
-    Task<VideoProcessingResult?> GetByVideoIdAsync(string videoId, CancellationToken cancellationToken = default);
+    Task<Result<VideoProcessingResult>> GetByVideoIdAsync(string videoId, CancellationToken cancellationToken = default);
     Task SaveAsync(VideoProcessingResult videoProcessing, CancellationToken cancellationToken = default);
 }
 
@@ -14,4 +16,4 @@ public record VideoProcessingResult(
     DateTime StartedAt,
     DateTime? CompletedAt,
     int TotalQrCodes,
-    IReadOnlyList<QrCodeResultDto> QrCodes);
+    IReadOnlyList<QrCodeResult> QrCodes);

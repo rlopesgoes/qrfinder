@@ -1,3 +1,4 @@
+using Application.Videos.Features.GetVideoResults;
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
 using Domain.Common;
@@ -13,7 +14,7 @@ public class SaveAnalysisResultsHandler(IVideoProcessingRepository repository) :
 
         var qrCodes = (request.Message.QrCodes ?? [])
             .Where(c => !string.IsNullOrEmpty(c.Text))
-            .Select(c => new QrCodeResultDto(
+            .Select(c => new QrCodeResult(
                 c.Text!,
                 c.TimestampSeconds,
                 c.FormattedTimestamp ?? "",

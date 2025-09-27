@@ -9,5 +9,11 @@ public record NotificationRequest(
 
 public enum VideoProcessingStage
 {
+    Created,
     Sent,
+    Uploading,
+    Uploaded,
+    Processing,
+    Processed,
+    Failed
 }

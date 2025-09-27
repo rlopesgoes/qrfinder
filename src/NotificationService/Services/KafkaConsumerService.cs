@@ -15,7 +15,7 @@ public class KafkaConsumerService(
     {
         BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092",
         GroupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "notification-service", 
-        AutoOffsetReset = AutoOffsetReset.Earliest,
+        AutoOffsetReset = AutoOffsetReset.Latest,
         EnableAutoCommit = false
     };
 

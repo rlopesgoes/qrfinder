@@ -18,6 +18,7 @@
 
     <ItemGroup>
       <Folder Include="Videos\Features\" />
+      <Folder Include="Videos\Features\ProcessVideo\" />
     </ItemGroup>
 
 </Project>

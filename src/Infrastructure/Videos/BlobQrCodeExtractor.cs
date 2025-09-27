@@ -1,4 +1,5 @@
 using Application.Videos.Ports;
+using Domain.Common;
 using Domain.Videos;
 using Domain.Videos.Ports;
 
@@ -17,7 +18,7 @@ public class BlobQrCodeExtractor : IQrCodeExtractor
         Directory.CreateDirectory(_tempDirectory);
     }
 
-    public async Task<IReadOnlyList<QrCode>> ExtractFromVideoAsync(VideoId videoId, CancellationToken cancellationToken = default)
+    public async Task<Result<QrCodes>> ExtractFromVideoAsync(VideoId videoId, CancellationToken cancellationToken = default)
     {
         // Use the original string representation with hyphens (as uploaded)
         var videoIdString = videoId.Value.ToString(); // Keep hyphens to match upload format
@@ -33,7 +34,7 @@ public class BlobQrCodeExtractor : IQrCodeExtractor
             // 3. Convert to domain objects
             var qrCodes = detections.Select(d => QrCode.Create(d.Text, d.TimestampSeconds)).ToList();
             
-            return qrCodes;
+            return new QrCodes(qrCodes);
         }
         finally
         {

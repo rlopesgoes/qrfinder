@@ -1,6 +1,6 @@
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
-using Application.Videos.Services;
+//using Application.Videos.Services;
 using Domain.Videos;
 using Domain.Videos.Ports;
 using MediatR;
@@ -19,28 +19,25 @@ public record QrCodeResponse(string Text, string FormattedTimestamp);
 
 public class ProcessVideoHandler(
     IQrCodeExtractor qrCodeExtractor,
-    IVideoStatusRepository videoStatusRepository,
-    IResultsPublisher resultsPublisher,
-    VideoProgressService progressService)
+    IAnalysisStatusRepository analysisStatusRepository,
+    IResultsPublisher resultsPublisher)
     : IRequestHandler<ProcessVideoCommand, ProcessVideoResponse?>
 {
     public async Task<ProcessVideoResponse?> Handle(ProcessVideoCommand request, CancellationToken cancellationToken)
     {
-        if (request.MessageType != "completed")
-            return null;
 
         var videoId = VideoId.From(request.VideoId);
-        var currentStatus = await videoStatusRepository.GetAsync(request.VideoId, cancellationToken);
+        var currentStatus = await analysisStatusRepository.GetAsync(request.VideoId, cancellationToken);
         
-        if (currentStatus?.Stage != VideoProcessingStage.Uploaded)
-            throw new InvalidOperationException("Video must be uploaded before processing");
+    //    if (currentStatus?.Stage != VideoProcessingStage.Uploaded)
+     //       throw new InvalidOperationException("Video must be uploaded before processing");
 
-        await videoStatusRepository.UpsertAsync(
-            new UploadStatus(request.VideoId, VideoProcessingStage.Processing), 
+        await analysisStatusRepository.UpsertAsync(
+            new ProcessStatus(request.VideoId, VideoProcessingStage.Processing), 
             cancellationToken);
 
         // Send processing started notification
-        await progressService.StartProcessingAsync(request.VideoId, cancellationToken);
+      //  await progressService.StartProcessingAsync(request.VideoId, cancellationToken);
 
         var startTime = DateTimeOffset.UtcNow;
         
@@ -57,12 +54,12 @@ public class ProcessVideoHandler(
 
             var processingTime = DateTimeOffset.UtcNow.Subtract(startTime).TotalMilliseconds;
 
-            await videoStatusRepository.UpsertAsync(
-                new UploadStatus(request.VideoId, VideoProcessingStage.Processed), 
+            await analysisStatusRepository.UpsertAsync(
+                new ProcessStatus(request.VideoId, VideoProcessingStage.Processed), 
                 cancellationToken);
 
             // Send processing completed notification
-            await progressService.CompleteProcessingAsync(request.VideoId, uniqueQrCodes.Count, cancellationToken);
+        //    await progressService.CompleteProcessingAsync(request.VideoId, uniqueQrCodes.Count, cancellationToken);
 
             var resultMessage = new
             {
@@ -88,12 +85,12 @@ public class ProcessVideoHandler(
         }
         catch (Exception ex)
         {
-            await videoStatusRepository.UpsertAsync(
-                new UploadStatus(request.VideoId, VideoProcessingStage.Failed), 
+            await analysisStatusRepository.UpsertAsync(
+                new ProcessStatus(request.VideoId, VideoProcessingStage.Failed), 
                 cancellationToken);
 
             // Send processing failed notification
-            await progressService.FailAsync(request.VideoId, ex.Message, cancellationToken);
+       //     await progressService.FailAsync(request.VideoId, ex.Message, cancellationToken);
             
             throw;
         }

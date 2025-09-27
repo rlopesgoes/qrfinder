@@ -9,7 +9,7 @@ namespace ResultsWorker;
 public class ResultsProcessor(
     IConsumer<string, byte[]> consumer,
     IVideoProcessingRepository repository,
-    IVideoStatusRepository statusRepository) : BackgroundService
+    IAnalysisStatusRepository statusRepository) : BackgroundService
 {
     private readonly string _topicResults = "videos.results";
 
@@ -74,7 +74,7 @@ public class ResultsProcessor(
                         if (!string.IsNullOrEmpty(videoId))
                         {
                             await statusRepository.UpsertAsync(
-                                new UploadStatus(videoId, VideoProcessingStage.Failed, -1, 0, 0, DateTime.UtcNow), 
+                                new ProcessStatus(videoId, VideoProcessingStage.Failed, -1, 0, 0, DateTime.UtcNow), 
                                 stoppingToken);
                         }
                         

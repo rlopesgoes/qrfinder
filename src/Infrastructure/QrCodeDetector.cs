@@ -75,12 +75,19 @@ internal class QrCodeDetector
             UseShellExecute = false
         })!;
         
-        _ = await process.StandardError.ReadToEndAsync(cancellationToken);
+        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
+        var stdout = await process.StandardOutput.ReadToEndAsync(cancellationToken);
         
         await process.WaitForExitAsync(cancellationToken);
         
         if (process.ExitCode != 0) 
-            throw new Exception($"{fileName} failed");
+        {
+            var errorMessage = $"{fileName} failed with exit code {process.ExitCode}.\n" +
+                              $"Command: {fileName} {arguments}\n" +
+                              $"STDERR: {stderr}\n" +
+                              $"STDOUT: {stdout}";
+            throw new Exception(errorMessage);
+        }
     }
 
     private static async Task<IReadOnlyCollection<double>> ExtractVideoTimestampsAsync(string videoPath, CancellationToken cancellationToken)
@@ -93,7 +100,17 @@ internal class QrCodeDetector
         })!;
         
         var outStr = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var stderr = await process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken);
+
+        if (process.ExitCode != 0)
+        {
+            var errorMessage = $"ffprobe failed with exit code {process.ExitCode}.\n" +
+                              $"Command: ffprobe -v error -select_streams v:0 -show_entries frame=pkt_pts_time -of csv=p=0 \"{videoPath}\"\n" +
+                              $"STDERR: {stderr}\n" +
+                              $"STDOUT: {outStr}";
+            throw new Exception(errorMessage);
+        }
 
         var list = new List<double>();
         foreach (var line in outStr.Split('\n', StringSplitOptions.RemoveEmptyEntries))

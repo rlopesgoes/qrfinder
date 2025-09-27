@@ -19,8 +19,8 @@ public class BlobQrCodeExtractor : IQrCodeExtractor
 
     public async Task<IReadOnlyList<QrCode>> ExtractFromVideoAsync(VideoId videoId, CancellationToken cancellationToken = default)
     {
-        // Use the original string representation, not the GUID with hyphens
-        var videoIdString = videoId.Value.ToString("N"); // "N" format removes hyphens
+        // Use the original string representation with hyphens (as uploaded)
+        var videoIdString = videoId.Value.ToString(); // Keep hyphens to match upload format
         
         // 1. Download video from Azurite and create temporary file for processing
         var videoPath = await DownloadVideoForProcessingAsync(videoIdString, cancellationToken);
@@ -49,17 +49,8 @@ public class BlobQrCodeExtractor : IQrCodeExtractor
     {
         var videoPath = Path.Combine(_tempDirectory, $"{SanitizeFileName(videoId)}.bin");
         
-        // Delete existing file if present
-        if (File.Exists(videoPath))
-            File.Delete(videoPath);
-
-        // Get video stream from Azurite (assembled from chunks)
-        using var videoStream = await _blobStorage.GetVideoStreamAsync(videoId, cancellationToken);
-        using var fileStream = new FileStream(videoPath, FileMode.Create, FileAccess.Write);
-        
-        await videoStream.CopyToAsync(fileStream, cancellationToken);
-        
-        return videoPath;
+        // Stream download directly to disk without loading into memory
+        return await _blobStorage.DownloadVideoDirectlyAsync(videoId, videoPath, cancellationToken);
     }
 
     private static void CleanupVideoFile(string videoPath)

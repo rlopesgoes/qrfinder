@@ -2,7 +2,7 @@
 using SignalRClient;
 
 var hubUrl = "http://localhost:5010/notificationHub";
-var rawId = args.Length > 0 ? args[0] : "7a04c191bd1f4caea645371ae39e1ad5";
+var rawId = args.Length > 0 ? args[0] : "bcd393d1-3c90-464f-8bd4-0395d64a5ba8";
 
 var videoId = rawId.Trim().ToLowerInvariant();
 
@@ -28,11 +28,8 @@ conn.On<VideoProcessingNotification>("progress", notification =>
     if (notification.Percent.HasValue)
         message += $" ({notification.Percent:0.0}%)";
     
-    if (!string.IsNullOrEmpty(notification.CurrentOperation))
-        message += $" - {notification.CurrentOperation}";
-    
-    if (!string.IsNullOrEmpty(notification.ErrorMessage))
-        message += $" | ERROR: {notification.ErrorMessage}";
+    if (!string.IsNullOrEmpty(notification.Message))
+        message += $" | MESSAGE: {notification.Message}";
     
     message += $" @ {notification.Timestamp:HH:mm:ss}";
     
@@ -53,7 +50,6 @@ namespace SignalRClient
         string VideoId,
         string Stage,
         double? Percent,
-        string? CurrentOperation,
-        string? ErrorMessage,
+        string? Message,
         DateTime Timestamp);
 }

@@ -1,7 +1,9 @@
+using Application;
 using Application.Videos.Ports;
 using Confluent.Kafka;
 using Infrastructure.Configuration;
 using Infrastructure.Implementations;
+using Infrastructure.Queues;
 using Infrastructure.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,6 +21,7 @@ public static class DependencyInjection
         {
             options.BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? options.BootstrapServers;
             options.Topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? options.Topic;
+            options.ProgressNotificationsTopic = Environment.GetEnvironmentVariable("KAFKA_PROGRESS_NOTIFICATIONS_TOPIC") ?? options.ProgressNotificationsTopic;
         });
 
         services.Configure<MongoDbOptions>(options =>
@@ -33,14 +36,17 @@ public static class DependencyInjection
         });
 
         // Register services
-        services.AddScoped<IVideoUploader, BlobVideoUploader>();
-        services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
+        // services.AddScoped<IVideoProcessingNotifier, Notifications.KafkaVideoProcessingNotifier>();
+        services.AddScoped<IAnalysisStatusRepository, AnalysisStatusRepository>();
         services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
         services.AddScoped<IResultsPublisher, Videos.KafkaResultsPublisher>();
         services.AddScoped<IVideoChunkStorage, Videos.FileVideoChunkStorage>();
-        services.AddScoped<IVideoProgressNotifier, Notifiers.KafkaVideoProgressNotifier>();
+        services.AddScoped<IAnalyzeProgressNotifier, Notifiers.KafkaAnalyzeProgressNotifier>();
         services.AddScoped<IBlobStorageService, BlobStorageService>();
         services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Videos.BlobQrCodeExtractor>();
+
+        services.AddScoped<IUploadLinkGenerator, UploadLinkGenerator>();
+        services.AddScoped<IVideoAnalysisQueue, KafkaVideoAnalysisQueue>();
         
         // Register MongoDB
         services.AddSingleton<IMongoClient>(sp =>
@@ -64,6 +70,16 @@ public static class DependencyInjection
                 BootstrapServers = options.Value.BootstrapServers
             };
             return new ProducerBuilder<string, byte[]>(config).Build();
+        });
+        
+        services.AddSingleton<IProducer<string, string>>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<KafkaOptions>>();
+            var config = new ProducerConfig
+            {
+                BootstrapServers = options.Value.BootstrapServers
+            };
+            return new ProducerBuilder<string, string>(config).Build();
         });
         
         return services;

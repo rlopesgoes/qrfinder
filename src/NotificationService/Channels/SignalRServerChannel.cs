@@ -19,8 +19,7 @@ public class SignalRServerChannel(IHubContext<NotificationHub> hubContext, ILogg
             videoId = videoIdNormalized,
             stage = notification.Stage.ToString().ToUpperInvariant(),
             percent = notification.ProgressPercentage,
-            currentOperation = notification.CurrentOperation,
-            errorMessage = notification.ErrorMessage,
+            message = notification.Message,
             timestamp = notification.Timestamp
         }, cancellationToken);
 

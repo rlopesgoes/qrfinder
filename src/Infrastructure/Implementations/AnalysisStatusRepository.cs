@@ -1,12 +1,13 @@
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
+using Domain.Common;
 using Domain.Videos;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 
 namespace Infrastructure.Implementations;
 
-public sealed class VideoStatusRepository(IMongoDatabase db) : IVideoStatusRepository
+public sealed class AnalysisStatusRepository(IMongoDatabase db) : IAnalysisStatusRepository
 {
     private const string VideoStatusCollection = "video_status";
     
@@ -22,31 +23,34 @@ public sealed class VideoStatusRepository(IMongoDatabase db) : IVideoStatusRepos
 
     private IMongoCollection<UploadStatusDto> Collection => db.GetCollection<UploadStatusDto>(VideoStatusCollection);
 
-    public async Task UpsertAsync(UploadStatus uploadStatus, CancellationToken cancellationToken)
+    public async Task<Result> UpsertAsync(ProcessStatus processStatus, CancellationToken cancellationToken)
     {
-        var builder = Builders<UploadStatusDto>.Update
-            .SetOnInsert(x => x.VideoId, uploadStatus.VideoId)
-            .Set(x => x.Stage, uploadStatus.Stage)
-            .Set(x => x.UpdatedAtUtc, DateTime.UtcNow);
+        try
+        {
+            var builder = Builders<UploadStatusDto>.Update
+                .SetOnInsert(x => x.VideoId, processStatus.VideoId)
+                .Set(x => x.Stage, processStatus.Stage)
+                .Set(x => x.UpdatedAtUtc, DateTime.UtcNow);
         
-        if (uploadStatus.LastSeq is not null)
-            builder = builder.Set(x => x.LastSeq, uploadStatus.LastSeq);
-        
-        if (uploadStatus.ReceivedBytes is not null)
-            builder = builder.Set(x => x.ReceivedBytes, uploadStatus.ReceivedBytes);
-        
-        if (uploadStatus.TotalBytes is not null)
-            builder = builder.Set(x => x.TotalBytes, uploadStatus.TotalBytes);
-        
-        await Collection.UpdateOneAsync(x => x.VideoId == uploadStatus.VideoId,
-            builder, new UpdateOptions { IsUpsert = true }, cancellationToken);
+            var result = await Collection.UpdateOneAsync(x => x.VideoId == processStatus.VideoId,
+                builder, new UpdateOptions { IsUpsert = true }, cancellationToken);
+            
+            if (!result.IsAcknowledged)
+                return Result.WithError($"Error on upsert into db. VideoId: {processStatus.VideoId}");
+            
+            return Result.Success();
+        }
+        catch (Exception e)
+        {
+            return e;
+        }
     }
     
-    public async Task<UploadStatus?> GetAsync(string videoId, CancellationToken cancellationToken)
+    public async Task<Result<ProcessStatus>> GetAsync(string videoId, CancellationToken cancellationToken)
     {
         var uploadVideoStatus = await Collection.Find(x => x.VideoId == videoId).FirstOrDefaultAsync(cancellationToken);
-        return uploadVideoStatus is null ? null :
-            new UploadStatus(
+        return uploadVideoStatus is null ? Result<ProcessStatus>.NoContent() : 
+            new ProcessStatus(
                 uploadVideoStatus.VideoId, 
                 uploadVideoStatus.Stage, 
                 uploadVideoStatus.LastSeq, 

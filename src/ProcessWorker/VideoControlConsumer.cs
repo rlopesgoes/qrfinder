@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Application.Videos.UseCases.ProcessVideo;
 using Confluent.Kafka;
 using Infrastructure.Telemetry;
@@ -6,12 +7,14 @@ using MediatR;
 
 namespace Worker;
 
+public record VideoAnalysisMessage(string VideoId);
+
 public class VideoControlConsumer(
-    [FromKeyedServices("ControlConsumer")] IConsumer<string, byte[]> consumer,
+    [FromKeyedServices("ControlConsumer")] IConsumer<string, string> consumer,
     IMediator mediator,
     ILogger<VideoControlConsumer> logger) : BackgroundService
 {
-    private readonly string _topicControl = "videos.control";
+    private readonly string _topicControl = "video.analysis.queue";
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -24,8 +27,20 @@ public class VideoControlConsumer(
                 var consumeResult = consumer.Consume(stoppingToken);
                 if (consumeResult is null) continue;
 
-                var videoId = consumeResult.Message.Key!;
-                var messageType = consumeResult.Message.Headers.GetUtf8("type");
+                VideoAnalysisMessage message;
+                try
+                {
+                    message = JsonSerializer.Deserialize<VideoAnalysisMessage>(consumeResult.Message.Value)!;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to parse message: {Message}", consumeResult.Message.Value);
+                    continue;
+                }
+
+                var videoId = message.VideoId;
+
+                const string messageType = "process";
 
                 // Extract trace context and start new activity
                 using var activity = KafkaTraceContextPropagator.ExtractAndStartActivity(

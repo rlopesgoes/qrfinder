@@ -14,6 +14,7 @@ public class NotificationDispatcher(IEnumerable<INotificationChannel> channels, 
             try
             {
                 await channel.SendNotificationAsync(notification, cancellationToken);
+                
                 logger.LogDebug("Notification sent via {ChannelName} for video {VideoId}", 
                     channel.ChannelName, notification.VideoId);
             }

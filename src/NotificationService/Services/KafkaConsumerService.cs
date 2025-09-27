@@ -1,6 +1,7 @@
 using Confluent.Kafka;
 using NotificationService.Models;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace NotificationService.Services;
 
@@ -9,7 +10,7 @@ public class KafkaConsumerService(
     ILogger<KafkaConsumerService> logger)
     : BackgroundService
 {
-    private readonly string _topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? "video-notifications";
+    private readonly string _topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? "video.progress.notifications";
     private readonly ConsumerConfig _consumerConfig = new()
     {
         BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092",
@@ -68,7 +69,13 @@ public class KafkaConsumerService(
     {
         try
         {
-            var notification = JsonSerializer.Deserialize<NotificationRequest>(messageValue);
+            var options = new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+                Converters = { new JsonStringEnumConverter() }
+            };
+            
+            var notification = JsonSerializer.Deserialize<NotificationRequest>(messageValue, options);
             if (notification is null)
             {
                 logger.LogWarning("Failed to deserialize notification message: {Message}", messageValue);

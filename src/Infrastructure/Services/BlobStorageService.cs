@@ -1,5 +1,6 @@
 using Application.Videos.Ports;
 using Azure.Storage.Blobs;
+using Azure.Storage.Sas;
 using Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 
@@ -8,88 +9,69 @@ namespace Infrastructure.Services;
 public sealed class BlobStorageService : IBlobStorageService
 {
     private readonly BlobContainerClient _containerClient;
+    private readonly TimeSpan _expiryTime;
 
     public BlobStorageService(IOptions<BlobStorageOptions> options)
     {
         var config = options.Value;
         var blobServiceClient = new BlobServiceClient(config.ConnectionString);
+        
+        _expiryTime = TimeSpan.FromMinutes(config.MinutesToExpire);
         _containerClient = blobServiceClient.GetBlobContainerClient(config.ContainerName);
     }
 
-    public async Task UploadChunkAsync(string videoId, int chunkIndex, byte[] chunkData, CancellationToken cancellationToken = default)
-    {
-        await _containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
-        
-        var blobName = $"{videoId}/chunk_{chunkIndex:D6}";
-        var blobClient = _containerClient.GetBlobClient(blobName);
-        
-        using var stream = new MemoryStream(chunkData);
-        await blobClient.UploadAsync(stream, overwrite: true, cancellationToken: cancellationToken);
-    }
-
-    public async Task<byte[]> DownloadChunkAsync(string videoId, int chunkIndex, CancellationToken cancellationToken = default)
-    {
-        var blobName = $"{videoId}/chunk_{chunkIndex:D6}";
-        var blobClient = _containerClient.GetBlobClient(blobName);
-        
-        var response = await blobClient.DownloadContentAsync(cancellationToken);
-        return response.Value.Content.ToArray();
-    }
-
-    public async Task<Stream> GetVideoStreamAsync(string videoId, CancellationToken cancellationToken = default)
-    {
-        var chunks = await GetUploadedChunksAsync(videoId, cancellationToken);
-        if (chunks.Count == 0)
-            throw new FileNotFoundException($"No chunks found for video {videoId}");
-
-        chunks.Sort();
-        var memoryStream = new MemoryStream();
-
-        foreach (var chunkIndex in chunks)
-        {
-            var chunkData = await DownloadChunkAsync(videoId, chunkIndex, cancellationToken);
-            await memoryStream.WriteAsync(chunkData, cancellationToken);
-        }
-
-        memoryStream.Position = 0;
-        return memoryStream;
-    }
 
     public async Task DeleteVideoAsync(string videoId, CancellationToken cancellationToken = default)
     {
-        var blobs = _containerClient.GetBlobsAsync(prefix: $"{videoId}/", cancellationToken: cancellationToken);
-        
-        await foreach (var blob in blobs)
-        {
-            var blobClient = _containerClient.GetBlobClient(blob.Name);
-            await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
-        }
+        var blobClient = _containerClient.GetBlobClient(videoId);
+        await blobClient.DeleteIfExistsAsync(cancellationToken: cancellationToken);
     }
 
     public async Task<bool> VideoExistsAsync(string videoId, CancellationToken cancellationToken = default)
     {
-        var chunks = await GetUploadedChunksAsync(videoId, cancellationToken);
-        return chunks.Count > 0;
+        var blobClient = _containerClient.GetBlobClient(videoId);
+        return await blobClient.ExistsAsync(cancellationToken);
     }
 
-    public async Task<List<int>> GetUploadedChunksAsync(string videoId, CancellationToken cancellationToken = default)
+    public async Task<string> GenerateUploadUrlAsync(string videoId, CancellationToken cancellationToken = default)
     {
-        var chunkIndices = new List<int>();
-        var blobs = _containerClient.GetBlobsAsync(prefix: $"{videoId}/chunk_", cancellationToken: cancellationToken);
+        await _containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
 
-        await foreach (var blob in blobs)
-        {
-            var fileName = Path.GetFileName(blob.Name);
-            if (fileName.StartsWith("chunk_") && fileName.Length >= 12) // chunk_000000
-            {
-                var chunkIndexStr = fileName.Substring(6, 6);
-                if (int.TryParse(chunkIndexStr, out var chunkIndex))
-                {
-                    chunkIndices.Add(chunkIndex);
-                }
-            }
-        }
+        var blobClient = _containerClient.GetBlobClient(videoId);
+        
+        var sasUri = blobClient.GenerateSasUri(
+            BlobSasPermissions.Create | BlobSasPermissions.Write,
+            DateTimeOffset.UtcNow.Add(_expiryTime));
+        
+        return sasUri.ToString();
+    }
 
-        return chunkIndices;
+
+    public async Task<string> DownloadVideoDirectlyAsync(string videoId, string outputPath, CancellationToken cancellationToken = default)
+    {
+        var blobClient = _containerClient.GetBlobClient(videoId);
+        
+        if (!await blobClient.ExistsAsync(cancellationToken))
+            throw new FileNotFoundException($"Video blob not found for {videoId}");
+
+        // Get blob properties to check size
+        var properties = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+        Console.WriteLine($"[DEBUG] Blob {videoId} exists. Size: {properties.Value.ContentLength} bytes");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
+        
+        if (File.Exists(outputPath))
+            File.Delete(outputPath);
+
+        Console.WriteLine($"[DEBUG] Downloading blob {videoId} to {outputPath}");
+        await blobClient.DownloadToAsync(outputPath, cancellationToken);
+        
+        var fileInfo = new FileInfo(outputPath);
+        Console.WriteLine($"[DEBUG] Downloaded file size: {fileInfo.Length} bytes");
+        
+        if (fileInfo.Length == 0)
+            throw new InvalidOperationException($"Downloaded file is empty for video {videoId}");
+        
+        return outputPath;
     }
 }

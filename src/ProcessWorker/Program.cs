@@ -15,7 +15,7 @@ var groupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "videos-wo
 builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
 
-builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ControlConsumer", (sp, key) =>
+builder.Services.AddKeyedSingleton<IConsumer<string, string>>("ControlConsumer", (sp, key) =>
 {
     var conf = new ConsumerConfig
     {
@@ -25,7 +25,7 @@ builder.Services.AddKeyedSingleton<IConsumer<string, byte[]>>("ControlConsumer",
         AutoOffsetReset = AutoOffsetReset.Earliest,
         PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
     };
-    return new ConsumerBuilder<string, byte[]>(conf).Build();
+    return new ConsumerBuilder<string, string>(conf).Build();
 });
 
 builder.Services.AddHostedService<VideoControlConsumer>();

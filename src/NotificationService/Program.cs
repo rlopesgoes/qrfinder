@@ -1,3 +1,5 @@
+using Application;
+using Infrastructure;
 using Infrastructure.Telemetry;
 using NotificationService.Channels;
 using NotificationService.Hubs;
@@ -8,6 +10,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Configure observability (logging + tracing) - centralized
 builder.Host.UseLogging();
 builder.Services.AddObservability();
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure();
 
 // Configure URLs from environment or default
 var urls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS") ?? "http://localhost:5010";
@@ -24,7 +28,7 @@ builder.Services.AddSignalR();
 builder.Services.AddScoped<INotificationChannel, SignalRServerChannel>();
 
 // Add dispatcher
-builder.Services.AddScoped<NotificationDispatcher>();
+//builder.Services.AddScoped<NotificationDispatcher>();
 
 // Add Kafka consumer service
 builder.Services.AddHostedService<KafkaConsumerService>();

@@ -2,11 +2,14 @@ using Confluent.Kafka;
 using NotificationService.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Application.UseCases.SendNotifications;
+using MediatR;
+using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 
 namespace NotificationService.Services;
 
 public class KafkaConsumerService(
-    IServiceProvider serviceProvider,
+    IMediator mediator,
     ILogger<KafkaConsumerService> logger)
     : BackgroundService
 {
@@ -28,75 +31,41 @@ public class KafkaConsumerService(
         using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
         consumer.Subscribe(_topic);
 
-        try
+        while (!stoppingToken.IsCancellationRequested)
         {
-            while (!stoppingToken.IsCancellationRequested)
+            try
             {
-                try
-                {
-                    var consumeResult = consumer.Consume(stoppingToken);
+                var consumeResult = consumer.Consume(stoppingToken);
+                if (consumeResult is null)
+                    continue;
                     
-                    if (consumeResult?.Message?.Value is not null)
-                    {
-                        await ProcessMessage(consumeResult.Message.Value, stoppingToken);
-                        consumer.Commit(consumeResult);
-                        
-                        logger.LogDebug("Message processed and committed. Offset: {Offset}", consumeResult.Offset);
-                    }
-                }
-                catch (ConsumeException ex)
+                var options = new JsonSerializerOptions
                 {
-                    logger.LogError(ex, "Error consuming message from Kafka");
-                }
-                catch (OperationCanceledException)
-                {
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "Unexpected error processing Kafka message");
-                }
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new JsonStringEnumConverter() }
+                };
+                var notification = JsonSerializer.Deserialize<NotificationRequest>(consumeResult.Message.Value, options);
+                if (notification is null)
+                    continue;
+                var result = await mediator.Send(new SendNotificationsCommand(
+                    notification.VideoId,
+                    (VideoProcessingStage)notification.Stage,
+                    notification.ProgressPercentage,
+                    notification.Message, notification.Timestamp), stoppingToken);
+                    
+                consumer.Commit(consumeResult);
+                
+                if (!result.IsSuccess)
+                    logger.LogError("Failed to process notification for video {VideoId}: {Error}", notification.VideoId, result.Error?.Message);
             }
-        }
-        finally
-        {
-            consumer.Close();
-            logger.LogInformation("Kafka consumer service stopped");
-        }
-    }
-
-    private async Task ProcessMessage(string messageValue, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var options = new JsonSerializerOptions
+            catch (OperationCanceledException)
             {
-                PropertyNameCaseInsensitive = true,
-                Converters = { new JsonStringEnumConverter() }
-            };
-            
-            var notification = JsonSerializer.Deserialize<NotificationRequest>(messageValue, options);
-            if (notification is null)
-            {
-                logger.LogWarning("Failed to deserialize notification message: {Message}", messageValue);
-                return;
+                break;
             }
-
-            logger.LogDebug("Processing notification for video {VideoId}: {Stage} - {Progress}%", 
-                notification.VideoId, notification.Stage, notification.ProgressPercentage);
-
-            using var scope = serviceProvider.CreateScope();
-            var dispatcher = scope.ServiceProvider.GetRequiredService<NotificationDispatcher>();
-            
-            await dispatcher.DispatchAsync(notification, cancellationToken);
-        }
-        catch (JsonException ex)
-        {
-            logger.LogError(ex, "Failed to deserialize notification message: {Message}", messageValue);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to process notification message: {Message}", messageValue);
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Unexpected error processing Kafka message");
+            }
         }
     }
 }

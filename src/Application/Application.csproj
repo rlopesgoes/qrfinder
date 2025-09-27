@@ -17,6 +17,7 @@
     </ItemGroup>
 
     <ItemGroup>
+      <Folder Include="UseCases\SaveAnalysisResults\" />
       <Folder Include="Videos\Features\" />
       <Folder Include="Videos\Features\ProcessVideo\" />
     </ItemGroup>

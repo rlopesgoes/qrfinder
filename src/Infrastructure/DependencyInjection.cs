@@ -16,13 +16,6 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
-        // Configure options with environment variable overrides
-        services.Configure<KafkaOptions>(options =>
-        {
-            options.BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? options.BootstrapServers;
-            options.Topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? options.Topic;
-            options.ProgressNotificationsTopic = Environment.GetEnvironmentVariable("KAFKA_PROGRESS_NOTIFICATIONS_TOPIC") ?? options.ProgressNotificationsTopic;
-        });
 
         services.Configure<MongoDbOptions>(options =>
         {
@@ -61,26 +54,6 @@ public static class DependencyInjection
             return mongoClient.GetDatabase(options.Value.Database);
         });
         
-        // Register Kafka Producer  
-        services.AddSingleton<IProducer<string, byte[]>>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<KafkaOptions>>();
-            var config = new ProducerConfig
-            {
-                BootstrapServers = options.Value.BootstrapServers
-            };
-            return new ProducerBuilder<string, byte[]>(config).Build();
-        });
-        
-        services.AddSingleton<IProducer<string, string>>(sp =>
-        {
-            var options = sp.GetRequiredService<IOptions<KafkaOptions>>();
-            var config = new ProducerConfig
-            {
-                BootstrapServers = options.Value.BootstrapServers
-            };
-            return new ProducerBuilder<string, string>(config).Build();
-        });
         
         return services;
     }

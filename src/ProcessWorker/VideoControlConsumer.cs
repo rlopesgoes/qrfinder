@@ -8,7 +8,7 @@ namespace Worker;
 public record VideoAnalysisMessage(string VideoId);
 
 public class VideoControlConsumer(
-    [FromKeyedServices("ControlConsumer")] IConsumer<string, string> consumer,
+    IConsumer<string, string> consumer,
     IMediator mediator,
     ILogger<VideoControlConsumer> logger) : BackgroundService
 {

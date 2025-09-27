@@ -2,6 +2,7 @@ using Application;
 using Confluent.Kafka;
 using Infrastructure;
 using Infrastructure.Telemetry;
+using ProcessWorker.Configuration;
 using Worker;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -9,13 +10,18 @@ var builder = Host.CreateApplicationBuilder(args);
 // Configure observability (logging + tracing) - centralized
 builder.Services.AddObservability();
 
-var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
-var groupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "videos-worker-simple";
+// Configure Kafka options from appsettings
+builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection(KafkaOptions.SectionName));
+
+var kafkaOptions = builder.Configuration.GetSection(KafkaOptions.SectionName).Get<KafkaOptions>() ?? new KafkaOptions();
+var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? kafkaOptions.BootstrapServers;
+var groupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? kafkaOptions.GroupId;
 
 builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
 
-builder.Services.AddKeyedSingleton<IConsumer<string, string>>("ControlConsumer", (sp, key) =>
+// Configure Kafka consumer for this worker
+builder.Services.AddSingleton<IConsumer<string, string>>(sp =>
 {
     var conf = new ConsumerConfig
     {
@@ -28,20 +34,31 @@ builder.Services.AddKeyedSingleton<IConsumer<string, string>>("ControlConsumer",
     return new ConsumerBuilder<string, string>(conf).Build();
 });
 
-builder.Services.AddHostedService<VideoControlConsumer>();
-
+// Configure Kafka producer for results publishing
 builder.Services.AddSingleton<IProducer<string, byte[]>>(_ =>
 {
-    var conf = new ProducerConfig
+    var config = new ProducerConfig
     {
-        BootstrapServers = bootstrap,
-        EnableIdempotence = true,
-        Acks = Acks.All,
-        LingerMs = 0,
-        BatchSize = 524_288
+        BootstrapServers = bootstrap
     };
-    return new ProducerBuilder<string, byte[]>(conf).Build();
+    return new ProducerBuilder<string, byte[]>(config).Build();
 });
+
+// Configure Kafka producer for progress notifications
+builder.Services.AddSingleton<IProducer<string, string>>(_ =>
+{
+    var config = new ProducerConfig
+    {
+        BootstrapServers = bootstrap
+    };
+    return new ProducerBuilder<string, string>(config).Build();
+});
+
+// Register progress topic for Infrastructure services
+var progressTopic = Environment.GetEnvironmentVariable("KAFKA_PROGRESS_NOTIFICATIONS_TOPIC") ?? kafkaOptions.ProgressNotificationsTopic;
+builder.Services.AddSingleton(progressTopic);
+
+builder.Services.AddHostedService<VideoControlConsumer>();
 
 var host = builder.Build();
 host.Run();

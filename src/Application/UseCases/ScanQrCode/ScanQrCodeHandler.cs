@@ -24,8 +24,8 @@ public class ScanQrCodeHandler(
             return Result<ScanQrCodeResponse>.FromResult(currentStatusResult);
         var currentStatus = currentStatusResult.Value!;
 
-        if (currentStatus.Stage is not VideoProcessingStage.Uploaded)
-            return Result<ScanQrCodeResponse>.WithError($"Video {request.VideoId} is not in the uploaded state");
+        if (currentStatus.Stage is not VideoProcessingStage.Sent)
+            return Result<ScanQrCodeResponse>.WithError($"Video {request.VideoId} is not in the sent state");
 
         await analysisStatusRepository.UpsertAsync(new ProcessStatus(request.VideoId, VideoProcessingStage.Processing), cancellationToken);
         await analyzeProgressNotifier.NotifyProgressAsync(new AnalyzeProgressNotification(request.VideoId, nameof(VideoProcessingStage.Processing), 50), cancellationToken);

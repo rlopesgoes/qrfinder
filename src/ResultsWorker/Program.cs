@@ -3,18 +3,21 @@ using Confluent.Kafka;
 using Infrastructure;
 using Infrastructure.Telemetry;
 using ResultsWorker;
+using ResultsWorker.Configuration;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Configure Kafka options from appsettings
+builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection(KafkaOptions.SectionName));
 
 // Configure observability (logging + tracing) - centralized
 builder.Services.AddObservability();
 builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
 
-var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092";
-var groupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "videos-worker-results";
-
-builder.Services.AddInfrastructure();
+var kafkaOptions = builder.Configuration.GetSection(KafkaOptions.SectionName).Get<KafkaOptions>() ?? new KafkaOptions();
+var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? kafkaOptions.BootstrapServers;
+var groupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? kafkaOptions.GroupId;
 
 builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
 {
@@ -23,7 +26,7 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
         BootstrapServers = bootstrap,
         GroupId = groupId,
         EnableAutoCommit = false,
-        AutoOffsetReset = AutoOffsetReset.Earliest,
+        AutoOffsetReset = AutoOffsetReset.Latest,
         PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
     };
     return new ConsumerBuilder<string, byte[]>(conf).Build();

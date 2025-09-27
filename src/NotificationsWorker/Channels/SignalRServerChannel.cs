@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using NotificationService.Hubs;
-using NotificationService.Models;
 using NotificationService.Services;
+using NotificationService.Models;
 
 namespace NotificationService.Channels;
 
@@ -13,11 +13,11 @@ public class SignalRServerChannel(IHubContext<NotificationHub> hubContext, ILogg
 
     public async Task SendNotificationAsync(NotificationRequest notification, CancellationToken cancellationToken = default)
     {
-        var videoIdNormalized = notification.VideoId?.Trim().ToLowerInvariant() ?? string.Empty;
+        var videoIdNormalized = notification.VideoId?.Trim().ToLowerInvariant().Replace("-", "") ?? string.Empty;
         
-        await hubContext.Clients.Group(videoIdNormalized).SendAsync("progress", new
+        await hubContext.Clients.Group($"video_{videoIdNormalized}").SendAsync("progress", new
         {
-            videoId = videoIdNormalized,
+            videoId = notification.VideoId,
             stage = notification.Stage.ToString().ToUpperInvariant(),
             percent = notification.ProgressPercentage,
             message = notification.Message,

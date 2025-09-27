@@ -11,7 +11,6 @@ namespace ResultsWorker;
 
 public class ResultsProcessor(
     IConsumer<string, byte[]> consumer,
-    IVideoProcessingRepository repository,
     IMediator mediator,
     IAnalysisStatusRepository statusRepository) : BackgroundService
 {

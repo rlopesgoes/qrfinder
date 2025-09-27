@@ -1,8 +1,8 @@
 using Confluent.Kafka;
-using NotificationService.Models;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Application.UseCases.SendNotifications;
+using NotificationService.Models;
 using MediatR;
 using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 
@@ -10,17 +10,12 @@ namespace NotificationService.Services;
 
 public class KafkaConsumerService(
     IMediator mediator,
+    IConsumer<Ignore, string> consumer,
+    string topic,
     ILogger<KafkaConsumerService> logger)
     : BackgroundService
 {
-    private readonly string _topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? "video.progress.notifications";
-    private readonly ConsumerConfig _consumerConfig = new()
-    {
-        BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092",
-        GroupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? "notification-service", 
-        AutoOffsetReset = AutoOffsetReset.Latest,
-        EnableAutoCommit = false
-    };
+    private readonly string _topic = topic;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -28,7 +23,6 @@ public class KafkaConsumerService(
         
         await Task.Delay(2000, stoppingToken);
         
-        using var consumer = new ConsumerBuilder<Ignore, string>(_consumerConfig).Build();
         consumer.Subscribe(_topic);
 
         while (!stoppingToken.IsCancellationRequested)

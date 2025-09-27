@@ -1,19 +1,17 @@
 using Application.Videos.Ports;
 using Confluent.Kafka;
 using Domain.Common;
-using Infrastructure.Configuration;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System.Text.Json;
 
 namespace Infrastructure.Notifiers;
 
 public class KafkaAnalyzeProgressNotifier(
     IProducer<string, string> producer,
-    IOptions<KafkaOptions> kafkaOptions,
+    string progressTopic,
     ILogger<KafkaAnalyzeProgressNotifier> logger) : IAnalyzeProgressNotifier
 {
-    private readonly string _topic = kafkaOptions.Value.ProgressNotificationsTopic;
+    private readonly string _topic = progressTopic;
 
     public async Task<Result> NotifyProgressAsync(AnalyzeProgressNotification notification, CancellationToken cancellationToken)
     {

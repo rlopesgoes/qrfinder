@@ -39,7 +39,7 @@ conn.On<VideoProcessingNotification>("progress", notification =>
 await conn.StartAsync();
 await conn.InvokeAsync("JoinVideoGroup", videoId);  
 
-Console.WriteLine($"🔗 Conectado ao NotificationService em {hubUrl}");
+Console.WriteLine($"🔗 Conectado ao NotificationsWorker em {hubUrl}");
 Console.WriteLine("📋 Estágios: UPLOADING → UPLOADED → PROCESSING → PROCESSED | FAILED");
 Console.WriteLine("⏹️  Pressione Enter para sair...\n");
 Console.ReadLine();

@@ -1,14 +1,18 @@
 using System.Text.Json;
+using Application;
+using Application.UseCases.SaveAnalysisResults;
 using Application.Videos.Ports;
 using Application.Videos.Ports.Dtos;
 using Confluent.Kafka;
 using Domain.Videos;
+using MediatR;
 
 namespace ResultsWorker;
 
 public class ResultsProcessor(
     IConsumer<string, byte[]> consumer,
     IVideoProcessingRepository repository,
+    IMediator mediator,
     IAnalysisStatusRepository statusRepository) : BackgroundService
 {
     private readonly string _topicResults = "videos.results";
@@ -28,36 +32,9 @@ public class ResultsProcessor(
 
                 var videoId = cr.Message.Key!;
                 var resultData = JsonSerializer.Deserialize<VideoResultMessage>(cr.Message.Value)!;
-
-                Console.WriteLine($"[ResultsWorker] Processing results for video: {videoId}");
-
-                if (string.IsNullOrEmpty(resultData.VideoId))
-                {
-                    Console.WriteLine($"[ResultsWorker] Invalid video ID in message, skipping");
-                    consumer.Commit(cr);
-                    continue;
-                }
-
-                var qrCodes = (resultData.QrCodes ?? [])
-                    .Where(c => !string.IsNullOrEmpty(c.Text))
-                    .Select(c => new QrCodeResultDto(
-                        c.Text!,
-                        c.TimestampSeconds,
-                        c.FormattedTimestamp ?? "",
-                        DateTime.UtcNow))
-                    .ToList();
-
-                var videoProcessingResult = new VideoProcessingResult(
-                    videoId,
-                    "Completed",
-                    resultData.CompletedAt.AddSeconds(-resultData.ProcessingTimeMs / 1000).DateTime,
-                    resultData.CompletedAt.DateTime,
-                    qrCodes.Count,
-                    qrCodes);
-
-                await repository.SaveAsync(videoProcessingResult, stoppingToken);
-
-                Console.WriteLine($"[ResultsWorker] Saved {qrCodes.Count} QR codes for video: {videoId}");
+                var result = await mediator.Send(new SaveAnalysisResultsCommand(
+                    resultData), stoppingToken);
+                
                 consumer.Commit(cr);
             }
             catch (OperationCanceledException) { break; }
@@ -93,14 +70,3 @@ public class ResultsProcessor(
         }
     }
 }
-
-public record VideoResultMessage(
-    string? VideoId,
-    DateTimeOffset CompletedAt,
-    double ProcessingTimeMs,
-    QrCodeMessageDto[]? QrCodes);
-
-public record QrCodeMessageDto(
-    string? Text,
-    double TimestampSeconds,
-    string? FormattedTimestamp);

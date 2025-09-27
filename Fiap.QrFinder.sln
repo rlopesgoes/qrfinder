@@ -22,7 +22,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Application", "src\Applicat
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ResultsWorker", "src\ResultsWorker\ResultsWorker.csproj", "{36EB02B4-F4D7-4B1F-9778-F218E49E2160}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotificationService", "src\NotificationService\NotificationService.csproj", "{9BAEEA45-7C25-4B9D-82AD-605089FF2129}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NotificationsWorker", "src\NotificationsWorker\NotificationsWorker.csproj", "{9BAEEA45-7C25-4B9D-82AD-605089FF2129}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

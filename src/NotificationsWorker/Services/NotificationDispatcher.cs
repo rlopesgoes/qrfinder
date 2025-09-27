@@ -1,6 +1,6 @@
-// using NotificationService.Models;
+// using NotificationsWorker.Models;
 //
-// namespace NotificationService.Services;
+// namespace NotificationsWorker.Services;
 //
 // /// <summary>
 // /// Dispatches notifications to multiple channels

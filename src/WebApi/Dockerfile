@@ -5,7 +5,7 @@ EXPOSE 5000
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 COPY ["src/WebApi/WebApi.csproj", "src/WebApi/"]
-COPY ["src/Application/Application/Application.csproj", "src/Application/Application/"]
+COPY ["src/Application/Application.csproj", "src/Application/"]
 COPY ["src/Contracts/Contracts.csproj", "src/Contracts/"]
 COPY ["src/Infrastructure/Infrastructure.csproj", "src/Infrastructure/"]
 COPY ["src/Domain/Domain.csproj", "src/Domain/"]

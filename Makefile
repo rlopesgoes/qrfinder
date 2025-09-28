@@ -1,4 +1,4 @@
-.PHONY: help infra-up infra-down infra-logs infra-ps full-up full-down clean build-api build-worker run-api run-worker
+.PHONY: help infra-up infra-down infra-logs infra-ps full-up full-down clean build-api build-worker run-api run-worker scale-up scale-down
 
 help:
 	@echo "QRFinder - Comandos Disponíveis:"
@@ -12,6 +12,8 @@ help:
 	@echo "🚀  APLICAÇÃO COMPLETA:"
 	@echo "  make full-up         - Sobe tudo (infra + API + Worker)"
 	@echo "  make full-down       - Para tudo"
+	@echo "  make scale-up        - Escala WebAPI para 5 réplicas (portas 5000-5004)"
+	@echo "  make scale-down      - Volta WebAPI para 1 réplica"
 	@echo ""
 	@echo "💻  DESENVOLVIMENTO LOCAL:"
 	@echo "  make build-api       - Builda a API"
@@ -62,6 +64,16 @@ run-api:
 run-worker:
 	@echo "💻 Rodando Worker localmente..."
 	cd src/Worker && dotnet run
+
+scale-up:
+	@echo "📈 Escalando WebAPI para 5 réplicas..."
+	docker-compose up -d --scale webapi=5
+	@echo "✅ WebAPI rodando em 5 réplicas com load balancer!"
+
+scale-down:
+	@echo "📉 Voltando WebAPI para 1 réplica..."
+	docker-compose up -d --scale webapi=1
+	@echo "✅ WebAPI rodando em 1 réplica!"
 
 clean:
 	@echo "🧹 Limpando containers, volumes e imagens..."

@@ -3,9 +3,10 @@ using System.Globalization;
 using Application.Ports;
 using Domain.Common;
 using Domain.Models;
-using SkiaSharp;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using ZXing;
-using ZXing.SkiaSharp;
 using Result = ZXing.Result;
 
 namespace Infrastructure.Adapters;
@@ -177,87 +178,69 @@ public class QrCodeScannerWithFFmpeg : IQrCodeScanner
 
     private static Result? ProcessFrame(string filePath)
     {
-        using var bitmap = SKBitmap.Decode(filePath);
-        if (bitmap is null) return null;
+        using var image = Image.Load<Rgba32>(filePath);
+        if (image is null) return null;
 
         var reader = CreateQrCodeReader();
         
-        var result = reader.Decode(bitmap);
+        var result = reader.Decode(ConvertToLuminanceSource(image));
         if (result is not null)
             return result;
         
-        result = TryScaledDecoding(reader, bitmap);
+        result = TryScaledDecoding(reader, image);
         if (result is not null)
             return result;
         
-        result = TryInvertedDecoding(reader, bitmap);
+        result = TryInvertedDecoding(reader, image);
         if (result is not null) 
             return result;
         
-        result = TryHighContrastDecoding(reader, bitmap);
+        result = TryHighContrastDecoding(reader, image);
         if (result is not null)
             return result;
         
-        result = TryBinarizedDecoding(reader, bitmap);
+        result = TryBinarizedDecoding(reader, image);
         
         return result;
     }
 
-    private static BarcodeReader CreateQrCodeReader() =>
+    private static BarcodeReaderGeneric CreateQrCodeReader() =>
         new()
         {
             Options = { TryHarder = true, TryInverted = true, PureBarcode = false, PossibleFormats = new[] { BarcodeFormat.QR_CODE } },
             AutoRotate = true
         };
 
-    private static Result? TryScaledDecoding(BarcodeReader reader, SKBitmap bitmap)
+    private static Result? TryScaledDecoding(BarcodeReaderGeneric reader, Image<Rgba32> image)
     {
-        var scale = bitmap.Width < 800 ? 3 : 2;
-        var scaledInfo = new SKImageInfo(bitmap.Width * scale, bitmap.Height * scale);
-        using var scaledBitmap = new SKBitmap(scaledInfo);
-        bitmap.ScalePixels(scaledBitmap, new SKSamplingOptions(SKFilterMode.Linear));
-        return reader.Decode(scaledBitmap);
+        var scale = image.Width < 800 ? 3 : 2;
+        using var scaledImage = image.Clone(ctx => ctx.Resize(image.Width * scale, image.Height * scale));
+        return reader.Decode(ConvertToLuminanceSource(scaledImage));
     }
 
-    private static Result? TryInvertedDecoding(BarcodeReader reader, SKBitmap bitmap)
+    private static Result? TryInvertedDecoding(BarcodeReaderGeneric reader, Image<Rgba32> image)
     {
-        using var invertedBitmap = InvertColors(bitmap);
-        return invertedBitmap != null ? reader.Decode(invertedBitmap) : null;
+        using var invertedImage = InvertColors(image);
+        return invertedImage != null ? reader.Decode(ConvertToLuminanceSource(invertedImage)) : null;
     }
 
-    private static Result? TryHighContrastDecoding(BarcodeReader reader, SKBitmap bitmap)
+    private static Result? TryHighContrastDecoding(BarcodeReaderGeneric reader, Image<Rgba32> image)
     {
-        using var contrastBitmap = HighContrast(bitmap);
-        return contrastBitmap != null ? reader.Decode(contrastBitmap) : null;
+        using var contrastImage = HighContrast(image);
+        return contrastImage != null ? reader.Decode(ConvertToLuminanceSource(contrastImage)) : null;
     }
 
-    private static Result? TryBinarizedDecoding(BarcodeReader reader, SKBitmap bitmap)
+    private static Result? TryBinarizedDecoding(BarcodeReaderGeneric reader, Image<Rgba32> image)
     {
-        using var binaryBitmap = Binarize(bitmap);
-        return binaryBitmap != null ? reader.Decode(binaryBitmap) : null;
+        using var binaryImage = Binarize(image);
+        return binaryImage != null ? reader.Decode(ConvertToLuminanceSource(binaryImage)) : null;
     }
 
-    private static SKBitmap? InvertColors(SKBitmap original)
+    private static Image<Rgba32>? InvertColors(Image<Rgba32> original)
     {
         try
         {
-            var info = new SKImageInfo(original.Width, original.Height);
-            var inverted = new SKBitmap(info);
-            
-            using var canvas = new SKCanvas(inverted);
-            using var paint = new SKPaint();
-            
-            var invertMatrix = new float[]
-            {
-                -1, 0, 0, 0, 255,
-                0, -1, 0, 0, 255,
-                0, 0, -1, 0, 255,
-                0, 0, 0, 1, 0
-            };
-            
-            paint.ColorFilter = SKColorFilter.CreateColorMatrix(invertMatrix);
-            canvas.DrawBitmap(original, 0, 0, paint);
-            
+            var inverted = original.Clone(ctx => ctx.Invert());
             return inverted;
         }
         catch
@@ -266,27 +249,11 @@ public class QrCodeScannerWithFFmpeg : IQrCodeScanner
         }
     }
 
-    private static SKBitmap? HighContrast(SKBitmap original)
+    private static Image<Rgba32>? HighContrast(Image<Rgba32> original)
     {
         try
         {
-            var info = new SKImageInfo(original.Width, original.Height);
-            var contrast = new SKBitmap(info);
-            
-            using var canvas = new SKCanvas(contrast);
-            using var paint = new SKPaint();
-            
-            var contrastMatrix = new float[]
-            {
-                3, 0, 0, 0, -128,
-                0, 3, 0, 0, -128,
-                0, 0, 3, 0, -128,
-                0, 0, 0, 1, 0
-            };
-            
-            paint.ColorFilter = SKColorFilter.CreateColorMatrix(contrastMatrix);
-            canvas.DrawBitmap(original, 0, 0, paint);
-            
+            var contrast = original.Clone(ctx => ctx.Contrast(2.0f));
             return contrast;
         }
         catch
@@ -295,32 +262,40 @@ public class QrCodeScannerWithFFmpeg : IQrCodeScanner
         }
     }
 
-    private static SKBitmap? Binarize(SKBitmap original)
+    private static Image<Rgba32>? Binarize(Image<Rgba32> original)
     {
         try
         {
-            var info = new SKImageInfo(original.Width, original.Height);
-            var binary = new SKBitmap(info);
-            
-            using var canvas = new SKCanvas(binary);
-            using var paint = new SKPaint();
-            
-            var binaryMatrix = new float[]
-            {
-                0.299f, 0.587f, 0.114f, 0, 0,
-                0.299f, 0.587f, 0.114f, 0, 0,
-                0.299f, 0.587f, 0.114f, 0, 0,
-                0, 0, 0, 1, 0
-            };
-            
-            paint.ColorFilter = SKColorFilter.CreateColorMatrix(binaryMatrix);
-            canvas.DrawBitmap(original, 0, 0, paint);
-            
+            var binary = original.Clone(ctx => ctx.Grayscale().BinaryThreshold(0.5f));
             return binary;
         }
         catch
         {
             return null;
         }
+    }
+
+    private static LuminanceSource ConvertToLuminanceSource(Image<Rgba32> image)
+    {
+        var width = image.Width;
+        var height = image.Height;
+        var luminance = new byte[width * height];
+
+        image.ProcessPixelRows(accessor =>
+        {
+            for (var y = 0; y < height; y++)
+            {
+                var row = accessor.GetRowSpan(y);
+                for (var x = 0; x < width; x++)
+                {
+                    var pixel = row[x];
+                    // Convert RGB to grayscale using standard formula
+                    var gray = (byte)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
+                    luminance[y * width + x] = gray;
+                }
+            }
+        });
+
+        return new RGBLuminanceSource(luminance, width, height);
     }
 }

@@ -1,5 +1,3 @@
-using Domain.Models;
-
 namespace Contracts.Contracts.GetAnalysisResults;
 
 public record GetAnalysisResultsResponse(string VideoId,

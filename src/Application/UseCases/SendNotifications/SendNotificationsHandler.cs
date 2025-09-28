@@ -2,7 +2,6 @@ using Application.Ports;
 using Domain.Common;
 using Domain.Models;
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 namespace Application.UseCases.SendNotifications;
 

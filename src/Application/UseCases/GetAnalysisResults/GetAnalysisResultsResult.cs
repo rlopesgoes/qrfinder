@@ -1,6 +1,6 @@
 namespace Application.Videos.Features.GetVideoResults;
 
-public record GetVideoResultsResult(
+public record GetAnalysisResultsResult(
     string VideoId,
     string Status,
     DateTime? CompletedAt,

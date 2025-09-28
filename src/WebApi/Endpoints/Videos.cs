@@ -8,7 +8,6 @@ using Contracts.Contracts.GetAnalysisStatus;
 using Contracts.Contracts.GetVideoResults;
 using Domain.Common;
 using MediatR;
-using GetVideoResultsResponse = Contracts.Contracts.GetVideoResults.GetVideoResultsResponse;
 
 namespace WebApi.Endpoints;
 
@@ -78,7 +77,7 @@ public static class Videos
         app.MapGet("/video/{id:guid}/results", 
                 async (Guid id, IMediator mediator, CancellationToken cancellationToken) =>
             {
-                var request = new GetVideoResultsRequest(id);
+                var request = new GetAnalysisResultsRequest(id);
                 
                 var result = await mediator.Send(request.ToQuery(), cancellationToken);
                 
@@ -119,10 +118,10 @@ public static class ContractsMappers
     public static GetAnalysisStatusResponse ToDto(this GetAnalysisStatusResult result)
         => new(result.Status, result.LastUpdatedAt);
     
-    public static GetVideoResultsQuery ToQuery(this GetVideoResultsRequest request) =>
+    public static GetAnalysisResultsQuery ToQuery(this GetAnalysisResultsRequest request) =>
         new(request.VideoId.ToString());
 
-    public static GetVideoResultsResponse ToDto(this GetVideoResultsResult result)
+    public static GetAnalysisResultsResponse ToDto(this GetAnalysisResultsResult result)
         => new(result.VideoId, result.Status, result.CompletedAt, result.TotalQrCodes, result.QrCodes.ToDto());
     
     private static IReadOnlyCollection<QrCodeResultDto> ToDto(this IReadOnlyCollection<QrCodeResult> results)

@@ -1,6 +1,6 @@
 namespace Contracts.Contracts.GetVideoResults;
 
-public record GetVideoResultsResponse(string VideoId,
+public record GetAnalysisResultsResponse(string VideoId,
     string Status,
     DateTime? CompletedAt,
     int TotalQrCodes,

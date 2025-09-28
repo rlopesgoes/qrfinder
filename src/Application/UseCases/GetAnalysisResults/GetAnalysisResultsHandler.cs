@@ -4,17 +4,17 @@ using MediatR;
 
 namespace Application.Videos.Features.GetVideoResults;
 
-public class GetVideoResultsHandler(IVideoProcessingRepository repository) 
-    : IRequestHandler<GetVideoResultsQuery, Result<GetVideoResultsResult>>
+public class GetAnalysisResultsHandler(IVideoProcessingRepository repository) 
+    : IRequestHandler<GetAnalysisResultsQuery, Result<GetAnalysisResultsResult>>
 {
-    public async Task<Result<GetVideoResultsResult>> Handle(GetVideoResultsQuery query, CancellationToken cancellationToken)
+    public async Task<Result<GetAnalysisResultsResult>> Handle(GetAnalysisResultsQuery query, CancellationToken cancellationToken)
     {
         var videoProcessingResult = await repository.GetByVideoIdAsync(query.VideoId, cancellationToken);
         if (!videoProcessingResult.IsSuccess)
-            return Result<GetVideoResultsResult>.FromResult(videoProcessingResult);
+            return Result<GetAnalysisResultsResult>.FromResult(videoProcessingResult);
         var videoProcessing = videoProcessingResult.Value!;
 
-        return new GetVideoResultsResult(
+        return new GetAnalysisResultsResult(
             videoProcessing.VideoId,
             videoProcessing.Status,
             videoProcessing.CompletedAt,

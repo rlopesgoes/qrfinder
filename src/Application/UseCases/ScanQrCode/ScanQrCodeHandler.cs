@@ -1,42 +1,42 @@
-using Application.Videos.Ports;
-using Application.Videos.Ports.Dtos;
+using Application.Ports;
 using Domain.Common;
-using Domain.Videos;
-using Domain.Videos.Ports;
+using Domain.Models;
 using MediatR;
 
 namespace Application.UseCases.ScanQrCode;
 
 public class ScanQrCodeHandler(
     IQrCodeExtractor qrCodeExtractor,
-    IAnalysisStatusRepository analysisStatusRepository,
-    IAnalyzeProgressNotifier analyzeProgressNotifier,
-    IResultsPublisher resultsPublisher)
-    : IRequestHandler<ScanQrCodeCommand, Result<ScanQrCodeResponse>>
+    IStatusReadOnlyRepository statusReadOnlyRepository,
+    IStatusWriteOnlyRepository statusWriteOnlyRepository,
+    IProgressNotifier progressNotifier,
+    IResultsPublisher resultsPublisher,
+    IVideosWriteOnlyRepository videosWriteOnlyRepository)
+    : IRequestHandler<ScanQrCodeCommand, Result<ScanQrCodeResult>>
 {
-    public async Task<Result<ScanQrCodeResponse>> Handle(ScanQrCodeCommand request, CancellationToken cancellationToken)
+    public async Task<Result<ScanQrCodeResult>> Handle(ScanQrCodeCommand command, CancellationToken cancellationToken)
     {
-        var videoId = VideoId.From(request.VideoId);
+        var videoId = VideoId.From(command.VideoId);
         
-        var currentStatusResult = await analysisStatusRepository.GetAsync(request.VideoId, cancellationToken);
+        var currentStatusResult = await statusReadOnlyRepository.GetAsync(videoId.ToString(), cancellationToken);
         if (!currentStatusResult.IsSuccess)
-            return Result<ScanQrCodeResponse>.FromResult(currentStatusResult);
+            return Result<ScanQrCodeResult>.FromResult(currentStatusResult);
         var currentStatus = currentStatusResult.Value!;
 
-        if (currentStatus.Stage is not VideoProcessingStage.Sent)
-            return Result<ScanQrCodeResponse>.WithError($"Video {request.VideoId} is not in the sent state");
+        if (currentStatus.Stage is not Stage.Sent)
+            return Result<ScanQrCodeResult>.WithError($"Video {videoId.ToString()} is not in the sent state");
 
-        await analysisStatusRepository.UpsertAsync(new ProcessStatus(request.VideoId, VideoProcessingStage.Processing), cancellationToken);
-        await analyzeProgressNotifier.NotifyProgressAsync(new AnalyzeProgressNotification(request.VideoId, nameof(VideoProcessingStage.Processing), 50), cancellationToken);
+        await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Processing), cancellationToken);
+        await progressNotifier.NotifyAsync(new ProgressNotification(videoId.ToString(), nameof(Stage.Processing), 50), cancellationToken);
 
         var startTime = DateTimeOffset.UtcNow;
         
         var qrCodesResult = await qrCodeExtractor.ExtractFromVideoAsync(videoId, cancellationToken);
         if (!qrCodesResult.IsSuccess)
         {
-            await analysisStatusRepository.UpsertAsync(new ProcessStatus(request.VideoId, VideoProcessingStage.Failed), cancellationToken);
-            await analyzeProgressNotifier.NotifyProgressAsync(new AnalyzeProgressNotification(request.VideoId, nameof(VideoProcessingStage.Failed), Message: qrCodesResult.Error?.Message), cancellationToken);
-            return Result<ScanQrCodeResponse>.FromResult(qrCodesResult);
+            await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Failed), cancellationToken);
+            await progressNotifier.NotifyAsync(new ProgressNotification(videoId.ToString(), nameof(Stage.Failed), Message: qrCodesResult.Error?.Message), cancellationToken);
+            return Result<ScanQrCodeResult>.FromResult(qrCodesResult);
         }
         var qrCodes = qrCodesResult.Value!;
         
@@ -45,30 +45,32 @@ public class ScanQrCodeHandler(
         var uniqueQrCodes = qrCodes.Values
             .Where(qr => !string.IsNullOrWhiteSpace(qr.Content))
             .GroupBy(qr => qr.Content)
-            .Select(group => group.OrderBy(qr => qr.DetectedAt.Seconds).First())
-            .OrderBy(qr => qr.DetectedAt.Seconds)
+            .Select(group => group.OrderBy(qr => qr.TimeStamp.Seconds).First())
+            .OrderBy(qr => qr.TimeStamp.Seconds)
             .ToList();
 
-        await analysisStatusRepository.UpsertAsync(new ProcessStatus(request.VideoId, VideoProcessingStage.Processed), cancellationToken);
-        await analyzeProgressNotifier.NotifyProgressAsync(new AnalyzeProgressNotification(request.VideoId, nameof(VideoProcessingStage.Processed), ProgressPercentage: 100), cancellationToken);
+        await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Processed), cancellationToken);
+        await progressNotifier.NotifyAsync(new ProgressNotification(videoId.ToString(), nameof(Stage.Processed), ProgressPercentage: 100), cancellationToken);
 
         var resultMessage = new
         {
-            VideoId = request.VideoId,
+            VideoId = videoId.ToString(),
             CompletedAt = DateTimeOffset.UtcNow,
             ProcessingTimeMs = processingTime,
             QrCodes = uniqueQrCodes.Select(qr => new
             {
                 Text = qr.Content,
-                TimestampSeconds = qr.DetectedAt.Seconds,
+                TimestampSeconds = qr.TimeStamp.Seconds,
                 FormattedTimestamp = qr.FormattedTimestamp
-            }).ToArray()
+            }).ToList()
         };
 
-        await resultsPublisher.PublishResultsAsync(request.VideoId, resultMessage, cancellationToken);
+        await resultsPublisher.PublishResultsAsync(videoId.ToString(), resultMessage, cancellationToken);
 
-        return new ScanQrCodeResponse(
-            VideoId: request.VideoId,
+        await videosWriteOnlyRepository.DeleteAsync(videoId.ToString(), cancellationToken);
+        
+        return new ScanQrCodeResult(
+            VideoId: command.VideoId,
             CompletedAt: DateTimeOffset.UtcNow,
             ProcessingTimeMs: processingTime,
             QrCodes: uniqueQrCodes.Select(qr => 

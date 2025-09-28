@@ -16,9 +16,4 @@
       <PackageReference Include="MediatR" Version="12.4.1" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Videos\Features\" />
-      <Folder Include="Videos\Features\ProcessVideo\" />
-    </ItemGroup>
-
 </Project>

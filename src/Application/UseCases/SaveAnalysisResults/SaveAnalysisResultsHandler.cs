@@ -1,36 +1,36 @@
-using Application.Videos.Features.GetVideoResults;
-using Application.Videos.Ports;
-using Application.Videos.Ports.Dtos;
+using Application.Ports;
 using Domain.Common;
+using Domain.Models;
 using MediatR;
 
 namespace Application.UseCases.SaveAnalysisResults;
 
-public class SaveAnalysisResultsHandler(IVideoProcessingRepository repository) : IRequestHandler<SaveAnalysisResultsCommand, Result<SaveAnalysisResultsResponse>>
+public class SaveAnalysisResultsHandler(IAnalysisResultWriteOnlyRepository analysisResultWriteOnlyRepository) : IRequestHandler<SaveAnalysisResultsCommand, Result<SaveAnalysisResultsResult>>
 {
-    public async Task<Result<SaveAnalysisResultsResponse>> Handle(SaveAnalysisResultsCommand request, CancellationToken cancellationToken)
+    public async Task<Result<SaveAnalysisResultsResult>> Handle(
+        SaveAnalysisResultsCommand request, CancellationToken cancellationToken)
     {
-        var videoId = request.Message.VideoId;
+        var videoId = request.VideoId;
 
-        var qrCodes = (request.Message.QrCodes ?? [])
-            .Where(c => !string.IsNullOrEmpty(c.Text))
-            .Select(c => new QrCodeResult(
-                c.Text!,
-                c.TimestampSeconds,
-                c.FormattedTimestamp ?? "",
-                DateTime.UtcNow))
+        var qrCodes = request.QrCodes.Values
+            .Where(c => !string.IsNullOrEmpty(c.Content))
+            .Select(c => new QrCode(
+                c.Content!,
+                c.TimeStamp))
             .ToList();
 
-        var videoProcessingResult = new VideoProcessingResult(
+        var videoProcessingResult = new AnalysisResult(
             videoId,
             "Completed",
-            request.Message.CompletedAt.AddSeconds(-request.Message.ProcessingTimeMs / 1000).DateTime,
-            request.Message.CompletedAt.DateTime,
+            request.CompletedAt.AddSeconds(-request.ProcessingTimeMs / 1000).DateTime,
+            request.CompletedAt.DateTime,
             qrCodes.Count,
-            qrCodes);
+            new(qrCodes));
 
-        await repository.SaveAsync(videoProcessingResult, cancellationToken);
+        var result = await analysisResultWriteOnlyRepository.SaveAsync(videoProcessingResult, cancellationToken);
+        if (!result.IsSuccess)
+            return Result<SaveAnalysisResultsResult>.FromResult(result);
 
-        return new Result<SaveAnalysisResultsResponse>();
+        return new SaveAnalysisResultsResult();
     }
 }

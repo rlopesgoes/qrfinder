@@ -1,24 +1,25 @@
-using Application.Videos.Ports;
+using Application.Ports;
 using Domain.Common;
+using Domain.Models;
 using MediatR;
-using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 
 namespace Application.UseCases.EnqueueVideoForAnalyzing;
 
 public class EnqueueVideoForAnalyzingHandler(
-    IAnalysisStatusRepository analysisStatusRepository,
+    IStatusReadOnlyRepository statusReadOnlyRepository,
+    IStatusWriteOnlyRepository statusWriteOnlyRepository,
     IVideoAnalysisQueue videoAnalysisQueue,
-    IAnalyzeProgressNotifier progressNotifier) 
+    IProgressNotifier progressNotifier) 
     : IRequestHandler<EnqueueVideoForAnalyzingCommand, Result<EnqueueVideoForAnalyzingResult>>
 {
     public async Task<Result<EnqueueVideoForAnalyzingResult>> Handle(EnqueueVideoForAnalyzingCommand command, CancellationToken cancellationToken)
     {
-        var statusResult = await analysisStatusRepository.GetAsync(command.VideoId, cancellationToken);
+        var statusResult = await statusReadOnlyRepository.GetAsync(command.VideoId, cancellationToken);
         if (!statusResult.IsSuccess)
             return Result<EnqueueVideoForAnalyzingResult>.FromResult(statusResult);
         var status = statusResult.Value!;
         
-        if (status.Stage is not VideoProcessingStage.Created)
+        if (status.Stage is not Stage.Created)
             return Result<EnqueueVideoForAnalyzingResult>.WithError($"Video {command.VideoId} is already being processed");
         
         var enqueueResult = await videoAnalysisQueue.EnqueueAsync(command.VideoId, cancellationToken);
@@ -27,11 +28,11 @@ public class EnqueueVideoForAnalyzingHandler(
         
         var enqueuedAt = DateTime.UtcNow;
         
-        var upsertResult = await analysisStatusRepository.UpsertAsync(new (command.VideoId, VideoProcessingStage.Sent), cancellationToken);
+        var upsertResult = await statusWriteOnlyRepository.UpsertAsync(new (command.VideoId, Stage.Sent), cancellationToken);
         if (!upsertResult.IsSuccess)
             return Result<EnqueueVideoForAnalyzingResult>.FromResult(upsertResult);
         
-        var notifyProgressResult = await progressNotifier.NotifyProgressAsync(new AnalyzeProgressNotification(command.VideoId, Stage: nameof(VideoProcessingStage.Sent)), cancellationToken);
+        var notifyProgressResult = await progressNotifier.NotifyAsync(new ProgressNotification(command.VideoId, Stage: nameof(Stage.Sent)), cancellationToken);
         if (!notifyProgressResult.IsSuccess)
             return Result<EnqueueVideoForAnalyzingResult>.FromResult(notifyProgressResult);
         

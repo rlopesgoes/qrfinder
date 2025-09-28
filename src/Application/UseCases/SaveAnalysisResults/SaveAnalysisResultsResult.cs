@@ -1,0 +1,3 @@
+namespace Application.UseCases.SaveAnalysisResults;
+
+public record SaveAnalysisResultsResult;

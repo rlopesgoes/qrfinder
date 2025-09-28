@@ -1,4 +1,6 @@
-namespace Contracts.Contracts.GetVideoResults;
+using Domain.Models;
+
+namespace Contracts.Contracts.GetAnalysisResults;
 
 public record GetAnalysisResultsResponse(string VideoId,
     string Status,
@@ -9,5 +11,4 @@ public record GetAnalysisResultsResponse(string VideoId,
 public record QrCodeResultDto(
     string Text,
     double TimestampSeconds,
-    string FormattedTimestamp,
-    DateTime DetectedAt);
+    string FormattedTimestamp);

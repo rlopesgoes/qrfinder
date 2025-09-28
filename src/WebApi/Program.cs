@@ -1,6 +1,5 @@
 using Application;
 using Infrastructure;
-using Infrastructure.Telemetry;
 using Microsoft.OpenApi.Models;
 using WebApi.Endpoints;
 using WebApi.Messaging;

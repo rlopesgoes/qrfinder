@@ -1,15 +1,15 @@
-using Application.Videos.Ports;
+using Application.Ports;
 using Domain.Common;
 using MediatR;
 
-namespace Application.Videos.Features.GetVideoResults;
+namespace Application.UseCases.GetAnalysisResults;
 
-public class GetAnalysisResultsHandler(IVideoProcessingRepository repository) 
+public class GetAnalysisResultsHandler(IAnalysisResultReadOnlyRepository repository) 
     : IRequestHandler<GetAnalysisResultsQuery, Result<GetAnalysisResultsResult>>
 {
     public async Task<Result<GetAnalysisResultsResult>> Handle(GetAnalysisResultsQuery query, CancellationToken cancellationToken)
     {
-        var videoProcessingResult = await repository.GetByVideoIdAsync(query.VideoId, cancellationToken);
+        var videoProcessingResult = await repository.GetAsync(query.VideoId, cancellationToken);
         if (!videoProcessingResult.IsSuccess)
             return Result<GetAnalysisResultsResult>.FromResult(videoProcessingResult);
         var videoProcessing = videoProcessingResult.Value!;

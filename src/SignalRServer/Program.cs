@@ -1,4 +1,4 @@
-using Infrastructure.Telemetry;
+using Infrastructure;
 using SignalRServer.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);

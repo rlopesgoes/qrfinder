@@ -1,19 +1,20 @@
-using Application;
+using Application.UseCases.SaveAnalysisResults;
 using Confluent.Kafka;
 using Infrastructure;
-using Infrastructure.Telemetry;
-using ResultsWorker;
 using ResultsWorker.Configuration;
+using ResultsWorker.Consumers;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-// Configure Kafka options from appsettings
 builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection(KafkaOptions.SectionName));
 
-// Configure observability (logging + tracing) - centralized
 builder.Services.AddObservability();
 builder.Services.AddInfrastructure();
-builder.Services.AddApplication();
+
+builder.Services.AddMediatR(cfg => 
+{
+    cfg.RegisterServicesFromAssemblyContaining<SaveAnalysisResultsHandler>();
+});
 
 var kafkaOptions = builder.Configuration.GetSection(KafkaOptions.SectionName).Get<KafkaOptions>() ?? new KafkaOptions();
 var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? kafkaOptions.BootstrapServers;
@@ -26,13 +27,13 @@ builder.Services.AddSingleton<IConsumer<string, byte[]>>(_ =>
         BootstrapServers = bootstrap,
         GroupId = groupId,
         EnableAutoCommit = false,
-        AutoOffsetReset = AutoOffsetReset.Latest,
-        PartitionAssignmentStrategy = PartitionAssignmentStrategy.CooperativeSticky
+        AutoOffsetReset = AutoOffsetReset.Latest
     };
     return new ConsumerBuilder<string, byte[]>(conf).Build();
 });
 
-builder.Services.AddHostedService<ResultsProcessor>();
+builder.Services.AddHostedService<ResultsConsumer>();
 
 var host = builder.Build();
+
 host.Run();

@@ -1,12 +1,13 @@
 using Domain.Common;
-using Domain.Videos;
+using Domain.Models;
 using MediatR;
 
 namespace Application.UseCases.SendNotifications;
 
 public record SendNotificationsCommand(
     string VideoId,
-    VideoProcessingStage Stage,
+    Stage Stage,
     double ProgressPercentage,
     string? Message = null,
-    DateTime Timestamp = default) : IRequest<Result<SendNotificationsResponse>>;
+    DateTime Timestamp = default) 
+    : IRequest<Result<SendNotificationsResult>>;

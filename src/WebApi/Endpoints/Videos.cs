@@ -1,12 +1,13 @@
-using Application.Videos.Features.GetVideoResults;
 using Application.UseCases.EnqueueVideoForAnalyzing;
 using Application.UseCases.GenerateUploadLink;
+using Application.UseCases.GetAnalysisResults;
 using Application.UseCases.GetAnalysisStatus;
 using Contracts.Contracts.EnqueueVideoForAnalyzing;
 using Contracts.Contracts.GenerateUploadLink;
+using Contracts.Contracts.GetAnalysisResults;
 using Contracts.Contracts.GetAnalysisStatus;
-using Contracts.Contracts.GetVideoResults;
 using Domain.Common;
+using Domain.Models;
 using MediatR;
 
 namespace WebApi.Endpoints;
@@ -81,7 +82,7 @@ public static class Videos
                 
                 var result = await mediator.Send(request.ToQuery(), cancellationToken);
                 
-                if (!result.IsSuccess)
+                if (!result.IsSuccessOrNoContent)
                     return Results.Problem(
                         title: $"Failed to get video result {id}",
                         detail: result.Error?.Message,
@@ -122,11 +123,11 @@ public static class ContractsMappers
         new(request.VideoId.ToString());
 
     public static GetAnalysisResultsResponse ToDto(this GetAnalysisResultsResult result)
-        => new(result.VideoId, result.Status, result.CompletedAt, result.TotalQrCodes, result.QrCodes.ToDto());
+        => new(result.VideoId, result.Status, result.CompletedAt, result.TotalQrCodes, result.QrCodes.Values.ToDto());
     
-    private static IReadOnlyCollection<QrCodeResultDto> ToDto(this IReadOnlyCollection<QrCodeResult> results)
+    private static IReadOnlyCollection<QrCodeResultDto> ToDto(this IReadOnlyCollection<QrCode> results)
         => results.Select(r => r.ToDto()).ToList();
     
-    private static QrCodeResultDto ToDto(this QrCodeResult result)
-        => new(result.Text, result.TimestampSeconds, result.FormattedTimestamp, result.DetectedAt);
+    private static QrCodeResultDto ToDto(this QrCode result)
+        => new(result.Content, result.TimeStamp.Seconds, result.FormattedTimestamp);
 }

@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
 using SignalRClient;
 
-var hubUrl = "http://localhost:5010/notificationHub";
+const string hubUrl = "http://localhost:5010/notificationHub";
 var rawId = args.Length > 0 ? args[0] : "1080a0b2-827e-406e-8346-75eec3add4ce";
 
 var videoId = rawId.Trim().ToLowerInvariant();
@@ -15,8 +15,8 @@ conn.On<VideoProcessingNotification>("progress", notification =>
 {
     var statusIcon = notification.Stage switch
     {
-        "UPLOADING" => "📤",
-        "UPLOADED" => "✅",
+        "CREATED" => "✅",
+        "SENT" => "📤",
         "PROCESSING" => "⚙️",
         "PROCESSED" => "🎉",
         "FAILED" => "❌",
@@ -40,7 +40,7 @@ await conn.StartAsync();
 await conn.InvokeAsync("JoinVideoGroup", videoId);  
 
 Console.WriteLine($"🔗 Conectado ao NotificationsWorker em {hubUrl}");
-Console.WriteLine("📋 Estágios: UPLOADING → UPLOADED → PROCESSING → PROCESSED | FAILED");
+Console.WriteLine("📋 Estágios: CREATED → SENT → PROCESSING → PROCESSED | FAILED");
 Console.WriteLine("⏹️  Pressione Enter para sair...\n");
 Console.ReadLine();
 

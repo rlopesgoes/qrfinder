@@ -1,16 +1,13 @@
-
-using Application.Videos.Ports;
-using Application.Videos.Ports.Dtos;
+using Application.Ports;
 using Domain.Common;
-using Domain.Videos;
+using Domain.Models;
 using MediatR;
-using VideoProcessingStage = Domain.Videos.VideoProcessingStage;
 
 namespace Application.UseCases.GenerateUploadLink;
 
 public class GenerateUploadLinkHandler(
     IUploadLinkGenerator uploadLinkGenerator, 
-    IAnalysisStatusRepository analysisStatusRepository) 
+    IStatusWriteOnlyRepository statusWriteOnlyRepository) 
     : IRequestHandler<GenerateUploadLinkCommand, Result<GenerateUploadLinkResult>>
 {
     public async Task<Result<GenerateUploadLinkResult>> Handle(GenerateUploadLinkCommand request, CancellationToken cancellationToken)
@@ -22,8 +19,8 @@ public class GenerateUploadLinkHandler(
         if (!generateLinkResult.IsSuccess)
             return Result<GenerateUploadLinkResult>.FromResult(generateLinkResult);
         
-        var upsertResult = await analysisStatusRepository.UpsertAsync(
-            new ProcessStatus(videoId.ToString(), VideoProcessingStage.Created), cancellationToken);
+        var upsertResult = await statusWriteOnlyRepository.UpsertAsync(
+            new Status(videoId.ToString(), Stage.Created), cancellationToken);
         if (!upsertResult.IsSuccess)
             return Result<GenerateUploadLinkResult>.FromResult(upsertResult);
         

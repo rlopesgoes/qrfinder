@@ -1,14 +1,10 @@
-namespace Application.Videos.Features.GetVideoResults;
+using Domain.Models;
+
+namespace Application.UseCases.GetAnalysisResults;
 
 public record GetAnalysisResultsResult(
     string VideoId,
     string Status,
     DateTime? CompletedAt,
     int TotalQrCodes,
-    IReadOnlyCollection<QrCodeResult> QrCodes);
-    
-public record QrCodeResult(
-    string Text,
-    double TimestampSeconds,
-    string FormattedTimestamp,
-    DateTime DetectedAt);
+    QrCodes QrCodes);

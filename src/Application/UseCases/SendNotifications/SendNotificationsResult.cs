@@ -1,0 +1,3 @@
+namespace Application.UseCases.SendNotifications;
+
+public record SendNotificationsResult;

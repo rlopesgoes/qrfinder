@@ -14,7 +14,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "UnitTests", "tests\UnitTest
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebApi", "src\WebApi\WebApi.csproj", "{F2055CB5-57A7-475D-8702-693F8A40063A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ProcessWorker", "src\ProcessWorker\ProcessWorker.csproj", "{D77AF776-471F-4641-9396-BBA8C7671803}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AnalysisWorker", "src\AnalysisWorker\AnalysisWorker.csproj", "{D77AF776-471F-4641-9396-BBA8C7671803}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SignalRClient", "src\SignalRClient\SignalRClient.csproj", "{6C002076-33BE-437A-A5B2-66FA90239247}"
 EndProject

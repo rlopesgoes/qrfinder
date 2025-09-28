@@ -1,8 +1,6 @@
-using Application.Videos.Ports;
+using Application.Ports;
+using Infrastructure.Adapters;
 using Infrastructure.Configuration;
-using Infrastructure.Implementations;
-using Infrastructure.Queues;
-using Infrastructure.Services;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using MongoDB.Driver;
@@ -37,13 +35,15 @@ public static class DependencyInjection
             options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? options.ConnectionString;
         });
         
-        services.AddScoped<IAnalysisStatusRepository, AnalysisStatusRepository>();
-        services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
-        services.AddScoped<IResultsPublisher, Videos.KafkaResultsPublisher>();
-        services.AddScoped<IVideoChunkStorage, Videos.FileVideoChunkStorage>();
-        services.AddScoped<IAnalyzeProgressNotifier, Notifiers.KafkaAnalyzeProgressNotifier>();
-        services.AddScoped<IBlobStorageService, BlobStorageService>();
-        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Videos.BlobQrCodeExtractor>();
+        services.AddScoped<IStatusReadOnlyRepository, StatusReadOnlyRepository>();
+        services.AddScoped<IStatusWriteOnlyRepository, StatusWriteOnlyRepository>();
+        services.AddScoped<IAnalysisResultReadOnlyRepository, AnalysisResultReadOnlyRepository>();
+        services.AddScoped<IAnalysisResultWriteOnlyRepository, AnalysisResultWriteOnlyRepository>();
+        services.AddScoped<IResultsPublisher, KafkaResultsPublisher>();
+        services.AddScoped<IProgressNotifier, KafkaProgressNotifier>();
+        services.AddScoped<IVideosReadOnlyRepository, VideosReadOnlyRepository>();
+        services.AddScoped<IVideosWriteOnlyRepository, VideosWriteOnlyRepository>();
+        services.AddScoped<IQrCodeExtractor, BlobQrCodeExtractor>();
         services.AddScoped<IUploadLinkGenerator, UploadLinkGenerator>();
         services.AddScoped<IVideoAnalysisQueue, KafkaVideoAnalysisQueue>();
         services.AddScoped<INotificationChannel, SignalRServerChannel>();

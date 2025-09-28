@@ -7,4 +7,5 @@ public sealed class BlobStorageOptions
     public string ConnectionString { get; set; } = "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1;";
     public string ContainerName { get; set; } = "videos";
     public int MinutesToExpire { get; set; } = 1;
+    public string BaseUrl { get; set; } = "http://localhost:10000";
 }

@@ -14,6 +14,7 @@ internal sealed class UploadLinkGenerator : IUploadLinkGenerator
     private readonly ILogger<UploadLinkGenerator> _logger;
     private readonly BlobContainerClient _containerClient;
     private readonly TimeSpan _expiryTime;
+    private readonly string _baseUrl;
 
     public UploadLinkGenerator(
         ILogger<UploadLinkGenerator> logger,
@@ -24,6 +25,7 @@ internal sealed class UploadLinkGenerator : IUploadLinkGenerator
         
         _logger = logger;
         _expiryTime = TimeSpan.FromMinutes(config.MinutesToExpire);
+        _baseUrl = config.BaseUrl;
         _containerClient = blobServiceClient.GetBlobContainerClient(config.ContainerName);
     }
     
@@ -38,7 +40,9 @@ internal sealed class UploadLinkGenerator : IUploadLinkGenerator
             var expiresAt = DateTimeOffset.UtcNow.Add(_expiryTime);
             var sasUri = blobClient.GenerateSasUri(BlobSasPermissions.Create | BlobSasPermissions.Write, expiresAt);
             
-            return new UploadLink(sasUri.AbsoluteUri, expiresAt);
+            var uri = $"{_baseUrl}{sasUri.PathAndQuery}";
+            
+            return new UploadLink(uri, expiresAt);
         }
         catch (Exception e)
         {

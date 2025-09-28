@@ -33,6 +33,7 @@ public static class DependencyInjection
         services.Configure<BlobStorageOptions>(options =>
         {
             options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? options.ConnectionString;
+            options.BaseUrl = Environment.GetEnvironmentVariable("AZURE_STORAGE_BASE_URL") ?? options.BaseUrl;
         });
         
         services.AddScoped<IStatusReadOnlyRepository, StatusReadOnlyRepository>();

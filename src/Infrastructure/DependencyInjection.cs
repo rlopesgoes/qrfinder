@@ -43,7 +43,7 @@ public static class DependencyInjection
         services.AddScoped<IProgressNotifier, KafkaProgressNotifier>();
         services.AddScoped<IVideosReadOnlyRepository, VideosReadOnlyRepository>();
         services.AddScoped<IVideosWriteOnlyRepository, VideosWriteOnlyRepository>();
-        services.AddScoped<IQrCodeExtractor, BlobQrCodeExtractor>();
+        services.AddScoped<IQrCodeScanner, QrCodeScannerWithFFmpeg>();
         services.AddScoped<IUploadLinkGenerator, UploadLinkGenerator>();
         services.AddScoped<IVideoAnalysisQueue, KafkaVideoAnalysisQueue>();
         services.AddScoped<INotificationChannel, SignalRServerChannel>();

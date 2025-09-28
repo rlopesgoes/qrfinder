@@ -6,12 +6,13 @@ using MediatR;
 namespace Application.UseCases.ScanQrCode;
 
 public class ScanQrCodeHandler(
-    IQrCodeExtractor qrCodeExtractor,
+    IQrCodeScanner qrCodeScanner,
     IStatusReadOnlyRepository statusReadOnlyRepository,
     IStatusWriteOnlyRepository statusWriteOnlyRepository,
     IProgressNotifier progressNotifier,
     IResultsPublisher resultsPublisher,
-    IVideosWriteOnlyRepository videosWriteOnlyRepository)
+    IVideosWriteOnlyRepository videosWriteOnlyRepository,
+    IVideosReadOnlyRepository videosReadOnlyRepository)
     : IRequestHandler<ScanQrCodeCommand, Result<ScanQrCodeResult>>
 {
     public async Task<Result<ScanQrCodeResult>> Handle(ScanQrCodeCommand command, CancellationToken cancellationToken)
@@ -31,7 +32,16 @@ public class ScanQrCodeHandler(
 
         var startTime = DateTimeOffset.UtcNow;
         
-        var qrCodesResult = await qrCodeExtractor.ExtractFromVideoAsync(videoId, cancellationToken);
+        var videoResult = await videosReadOnlyRepository.GetAsync(videoId.ToString(), cancellationToken);
+        if (!videoResult.IsSuccess)
+        {
+            await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Failed), cancellationToken);
+            await progressNotifier.NotifyAsync(new ProgressNotification(videoId.ToString(), nameof(Stage.Failed), Message: videoResult.Error?.Message), cancellationToken);
+            return Result<ScanQrCodeResult>.FromResult(videoResult);
+        }
+        var video = videoResult.Value!;
+        
+        var qrCodesResult = await qrCodeScanner.ScanAsync(video, cancellationToken);
         if (!qrCodesResult.IsSuccess)
         {
             await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Failed), cancellationToken);

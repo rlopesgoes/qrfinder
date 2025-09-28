@@ -1,21 +1,43 @@
 using System.Collections.Concurrent;
 using System.Globalization;
+using Application.Ports;
+using Domain.Common;
 using Domain.Models;
 using SkiaSharp;
 using ZXing;
 using ZXing.SkiaSharp;
+using Result = ZXing.Result;
 
 namespace Infrastructure.Adapters;
 
-internal class QrCodeDetector
+public class QrCodeScannerWithFFmpeg : IQrCodeScanner
 {
+    private static readonly string TempDirectory = Path.Combine(Path.GetTempPath(), "qrfinder", "processing");
     private const int DefaultFrameRate = 5;
     private const double FrameInterval = 0.2;
-
-    public async Task<IReadOnlyCollection<QrCode>> DetectQrCodesAsync(string videoPath, CancellationToken cancellationToken)
+    
+    private static string BuildTemporaryVideoFileName(string videoId)
+        => Path.Combine(TempDirectory, $"{videoId}.bin");
+    
+    public async Task<Result<QrCodes>> ScanAsync(Video video, CancellationToken cancellationToken = default)
     {
-        var qrCodes = await DetectQrCodesInternalAsync(videoPath, cancellationToken);
-        return qrCodes.Select(qr => new QrCode(qr.content, new (qr.timestamp))).ToList();
+        if (!Directory.Exists(TempDirectory))
+            Directory.CreateDirectory(TempDirectory);
+        
+        var path = BuildTemporaryVideoFileName(video.Id);
+        var content = video.Content;
+        
+        await using var output = File.Create(path);
+        await content.CopyToAsync(output, cancellationToken);
+        
+        var results = await DetectQrCodesInternalAsync(path, cancellationToken);
+        
+        if (File.Exists(path))
+            File.Delete(path);
+
+        var qrCodes = results.Select(qr => new QrCode(qr.content, new Timestamp(qr.timestamp))).ToList();
+        
+        return new QrCodes(qrCodes);
     }
     
     private static async Task<IReadOnlyCollection<(string content, double timestamp)>> DetectQrCodesInternalAsync(string videoPath, CancellationToken cancellationToken)
@@ -34,7 +56,11 @@ internal class QrCodeDetector
 
         await Parallel.ForEachAsync(
             files.Select((file, index) => new { file, index }),
-            new ParallelOptions { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Environment.ProcessorCount, 
+                CancellationToken = cancellationToken
+            },
             (frameInfo, _) =>
             {
                 try
@@ -48,20 +74,21 @@ internal class QrCodeDetector
                         frameResults.Add((qrResult.Text, timestamp));
                     }
                 }
-                catch (Exception ex) when (ex is not OutOfMemoryException) { }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    
+                }
                 
                 return ValueTask.CompletedTask;
             });
 
-        List<(string content, double timestamp)> uniqueResults = frameResults
-            .GroupBy(r => r.text)
-            .Select(g => g.OrderBy(r => r.timestamp).First())
-            .OrderBy(r => r.timestamp)
+        var results = frameResults
             .Select(r => (content: r.text, timestamp: r.timestamp))
             .ToList();
 
-        try { Directory.Delete(framesDirectory, true); } catch { }
-        return uniqueResults;
+        Directory.Delete(framesDirectory, true);
+        
+        return results;
     }
 
     private static async Task RunFfmpegAsync(string fileName, string arguments, CancellationToken cancellationToken)

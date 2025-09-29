@@ -201,6 +201,11 @@ clean-mongo: ## Limpa apenas MongoDB (sem recriar tópicos)
 	@echo "$(YELLOW)🧹 Limpando coleções do MongoDB...$(NC)"
 	@docker exec qrfinder-mongo mongosh --quiet --eval "use qrfinder; db.statuses.deleteMany({}); db.analysisResults.deleteMany({}); print('✅ Estado limpo');" || echo "$(RED)⚠️  MongoDB não acessível$(NC)"
 
+create-kafka-topics: ## Cria tópicos Kafka necessários
+	@echo "$(GREEN)🔧 Criando tópicos Kafka...$(NC)"
+	@chmod +x $(SCRIPTS_DIR)/create-kafka-topics.sh
+	@$(SCRIPTS_DIR)/create-kafka-topics.sh
+
 reset-kafka-topics: ## Recria tópicos Kafka otimizados
 	@echo "$(YELLOW)🗑️  Deletando tópicos antigos...$(NC)"
 	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic video.analysis.queue 2>/dev/null || true
@@ -208,11 +213,7 @@ reset-kafka-topics: ## Recria tópicos Kafka otimizados
 	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic videos.results 2>/dev/null || true
 	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic video.progress.notifications 2>/dev/null || true
 	@sleep 2
-	@echo "$(GREEN)✅ Criando tópicos...$(NC)"
-	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic video.analysis.queue --partitions 3 --replication-factor 1
-	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic video.progress --partitions 1 --replication-factor 1
-	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic videos.results --partitions 1 --replication-factor 1
-	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic video.progress.notifications --partitions 1 --replication-factor 1
+	@make create-kafka-topics
 
 restart-workers: ## Reinicia todos os analysis workers
 	@echo "$(YELLOW)🔄 Reiniciando analysis workers...$(NC)"

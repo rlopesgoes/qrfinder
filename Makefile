@@ -9,7 +9,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m
 
-.PHONY: help up down build logs clean upload upload-fixed test-upload status results scale-workers scale-analysis
+.PHONY: help up down build logs clean upload upload-fixed test-upload status results demo-basic demo-scaled scale-all
 
 help: ## Mostra esta ajuda
 	@echo "$(GREEN)QrFinder - Comandos Disponíveis:$(NC)"
@@ -105,49 +105,62 @@ health: ## Verifica saúde dos serviços
 	@echo "\nContainers:"
 	@$(COMPOSE) ps
 
-# Development helpers
+# Ambientes pré-configurados
+demo-basic: ## 🚀 Demo básico: 1 instância de cada serviço
+	@echo "$(GREEN)🚀 Subindo ambiente básico (1 réplica de cada)...$(NC)"
+	@$(COMPOSE) down
+	@$(COMPOSE) up -d
+	@echo "$(GREEN)✅ Ambiente básico rodando!$(NC)"
+	@echo "$(YELLOW)📊 Serviços disponíveis:$(NC)"
+	@echo "  • API: http://localhost"
+	@echo "  • Swagger: http://localhost/swagger/index.html"
+	@echo "  • Kafka UI: http://localhost:5004"
+	@echo "  • Mongo Express: http://localhost:5005 (admin/admin123)"
+
+demo-scaled: ## 🔥 Demo escalado: 5 APIs + 10 Analysis Workers + 1 Results + 1 Notifications
+	@echo "$(GREEN)🔥 Subindo ambiente escalado...$(NC)"
+	@echo "$(YELLOW)📈 Configuração: 5 APIs, 10 Analysis, 1 Results, 1 Notifications$(NC)"
+	@$(COMPOSE) down
+	@$(COMPOSE) up -d --scale webapi=5 --scale analysis-worker=10 --scale results-worker=1 --scale notifications-worker=1
+	@echo "$(GREEN)✅ Ambiente escalado rodando!$(NC)"
+	@echo "$(YELLOW)📊 Load balancer (Nginx): http://localhost$(NC)"
+	@echo "$(YELLOW)📋 Swagger: http://localhost/swagger/index.html$(NC)"
+	@echo "$(YELLOW)⚡ 10 workers processando em paralelo$(NC)"
+
+# Comandos de escala manual
+scale-all: ## Escala todos os serviços (uso: make scale-all API=3 ANALYSIS=5 RESULTS=2 NOTIFICATIONS=2)
+	@echo "$(GREEN)📈 Escalando todos os serviços...$(NC)"
+	@API_COUNT=$${API:-1}; \
+	ANALYSIS_COUNT=$${ANALYSIS:-1}; \
+	RESULTS_COUNT=$${RESULTS:-1}; \
+	NOTIFICATIONS_COUNT=$${NOTIFICATIONS:-1}; \
+	echo "API: $$API_COUNT, Analysis: $$ANALYSIS_COUNT, Results: $$RESULTS_COUNT, Notifications: $$NOTIFICATIONS_COUNT"; \
+	$(COMPOSE) up -d --scale webapi=$$API_COUNT --scale analysis-worker=$$ANALYSIS_COUNT --scale results-worker=$$RESULTS_COUNT --scale notifications-worker=$$NOTIFICATIONS_COUNT
+
+# Comandos de desenvolvimento
 dev: ## Ambiente de desenvolvimento (up + logs)
-	@make up
+	@make demo-basic
 	@sleep 5
 	@make logs
 
 restart: ## Restart todos os serviços
 	@echo "$(YELLOW)🔄 Reiniciando serviços...$(NC)"
 	@make down
-	@make up
-
-restart-worker: ## Restart específico worker (uso: make restart-worker WORKER=analysis)
-ifndef WORKER
-	@echo "$(RED)❌ Erro: Especifique o WORKER$(NC)"
-	@echo "$(YELLOW)📌 Workers: analysis, notifications, results$(NC)"
-	@exit 1
-endif
-	@echo "$(YELLOW)🔄 Reiniciando $(WORKER)-worker...$(NC)"
-	$(COMPOSE) restart $(WORKER)-worker
-
-scale-workers: ## Escala workers (uso: make scale-workers ANALYSIS=3 RESULTS=2 NOTIFICATIONS=2)
-	@echo "$(GREEN)📈 Escalando workers...$(NC)"
-	@SCALE_ANALYSIS=$${ANALYSIS:-1}; \
-	SCALE_RESULTS=$${RESULTS:-1}; \
-	SCALE_NOTIFICATIONS=$${NOTIFICATIONS:-1}; \
-	echo "Analysis: $$SCALE_ANALYSIS, Results: $$SCALE_RESULTS, Notifications: $$SCALE_NOTIFICATIONS"; \
-	$(COMPOSE) up -d --scale analysis-worker=$$SCALE_ANALYSIS --scale results-worker=$$SCALE_RESULTS --scale notifications-worker=$$SCALE_NOTIFICATIONS
-
-scale-analysis: ## Escala apenas analysis worker (uso: make scale-analysis COUNT=3)
-ifndef COUNT
-	@echo "$(RED)❌ Erro: Especifique o COUNT$(NC)"
-	@echo "$(YELLOW)📌 Exemplo: make scale-analysis COUNT=3$(NC)"
-	@exit 1
-endif
-	@echo "$(GREEN)📈 Escalando analysis worker para $(COUNT) instâncias...$(NC)"
-	$(COMPOSE) up -d --scale analysis-worker=$(COUNT)
+	@make demo-basic
 
 # Quick actions
 quick-test: ## Teste rápido completo
 	@echo "$(GREEN)🚀 Teste rápido completo...$(NC)"
-	@make up
+	@make demo-basic
 	@sleep 10
 	@make test-upload
+
+performance-test: ## Teste de performance com ambiente escalado
+	@echo "$(GREEN)🔥 Teste de performance com 10 workers...$(NC)"
+	@make demo-scaled
+	@sleep 15
+	@echo "$(YELLOW)🎬 Fazendo upload para testar processamento paralelo...$(NC)"
+	@make upload-fixed
 
 upload-fixed: ## Upload do vídeo fixo WhatsApp
 	@echo "$(GREEN)📤 Fazendo upload do vídeo fixo WhatsApp...$(NC)"
@@ -161,14 +174,14 @@ examples: ## Mostra exemplos de uso
 	@echo "$(YELLOW)1. Subir ambiente:$(NC)"
 	@echo "   make up"
 	@echo ""
-	@echo "$(YELLOW)2. Upload de vídeo:$(NC)"
+	@echo "$(YELLOW)2. Demo básico (1 réplica):$(NC)"
+	@echo "   make demo-basic"
+	@echo ""
+	@echo "$(YELLOW)3. Demo escalado (10 workers):$(NC)"
+	@echo "   make demo-scaled"
+	@echo ""
+	@echo "$(YELLOW)4. Upload de vídeo:$(NC)"
 	@echo "   make upload VIDEO=meu_video.mp4"
 	@echo ""
-	@echo "$(YELLOW)3. Upload vídeo fixo:$(NC)"
-	@echo "   make upload-fixed"
-	@echo ""
-	@echo "$(YELLOW)4. Verificar logs:$(NC)"
-	@echo "   make logs-analysis"
-	@echo ""
-	@echo "$(YELLOW)5. Ver resultados:$(NC)"
-	@echo "   make results VIDEO_ID=uuid-do-video"
+	@echo "$(YELLOW)5. Teste de performance:$(NC)"
+	@echo "   make performance-test"

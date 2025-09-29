@@ -9,7 +9,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m
 
-.PHONY: help up down build logs clean upload upload-fixed test-upload status results
+.PHONY: help up down build logs clean upload upload-fixed test-upload status results scale-workers scale-analysis
 
 help: ## Mostra esta ajuda
 	@echo "$(GREEN)QrFinder - Comandos Disponíveis:$(NC)"
@@ -124,6 +124,23 @@ ifndef WORKER
 endif
 	@echo "$(YELLOW)🔄 Reiniciando $(WORKER)-worker...$(NC)"
 	$(COMPOSE) restart $(WORKER)-worker
+
+scale-workers: ## Escala workers (uso: make scale-workers ANALYSIS=3 RESULTS=2 NOTIFICATIONS=2)
+	@echo "$(GREEN)📈 Escalando workers...$(NC)"
+	@SCALE_ANALYSIS=$${ANALYSIS:-1}; \
+	SCALE_RESULTS=$${RESULTS:-1}; \
+	SCALE_NOTIFICATIONS=$${NOTIFICATIONS:-1}; \
+	echo "Analysis: $$SCALE_ANALYSIS, Results: $$SCALE_RESULTS, Notifications: $$SCALE_NOTIFICATIONS"; \
+	$(COMPOSE) up -d --scale analysis-worker=$$SCALE_ANALYSIS --scale results-worker=$$SCALE_RESULTS --scale notifications-worker=$$SCALE_NOTIFICATIONS
+
+scale-analysis: ## Escala apenas analysis worker (uso: make scale-analysis COUNT=3)
+ifndef COUNT
+	@echo "$(RED)❌ Erro: Especifique o COUNT$(NC)"
+	@echo "$(YELLOW)📌 Exemplo: make scale-analysis COUNT=3$(NC)"
+	@exit 1
+endif
+	@echo "$(GREEN)📈 Escalando analysis worker para $(COUNT) instâncias...$(NC)"
+	$(COMPOSE) up -d --scale analysis-worker=$(COUNT)
 
 # Quick actions
 quick-test: ## Teste rápido completo

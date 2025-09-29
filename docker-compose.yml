@@ -166,7 +166,7 @@ services:
       echo 'Aguardando Kafka inicializar...'
       sleep 30
       echo 'Criando tópicos...'
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 10 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 1 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 1 --replication-factor 1
       kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 1 --replication-factor 1

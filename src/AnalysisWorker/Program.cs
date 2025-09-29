@@ -49,7 +49,15 @@ builder.Services.AddSingleton<IProducer<string, string>>(_ =>
     return new ProducerBuilder<string, string>(config).Build();
 });
 
-builder.Services.AddHostedService<AnalysisConsumer>();
+var consumerType = builder.Configuration.GetValue<string>("AnalysisWorker:ConsumerType", "Standard");
+if (consumerType == "Parallel")
+{
+    builder.Services.AddHostedService<ParallelAnalysisConsumer>();
+}
+else
+{
+    builder.Services.AddHostedService<AnalysisConsumer>();
+}
 
 var host = builder.Build();
 

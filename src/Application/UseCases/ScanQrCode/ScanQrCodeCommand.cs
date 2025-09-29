@@ -5,5 +5,5 @@ using MediatR;
 
 namespace Application.UseCases.ScanQrCode;
 
-public record ScanQrCodeCommand(string VideoId)
+public record ScanQrCodeCommand(string VideoId, DateTime? StartedAt = null)
     : IRequest<Result<ScanQrCodeResult>>;

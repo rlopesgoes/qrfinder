@@ -28,7 +28,16 @@ public class AnalysisConsumer(
             if (message is null)
                 continue;
             
-            var result = await mediator.Send(new ScanQrCodeCommand(message.VideoId), stoppingToken);
+            DateTime? startTime = null;
+            var startTimeHeader = consumeResult.Message.Headers?.FirstOrDefault(h => h.Key == "x-started-at");
+            if (startTimeHeader?.GetValueBytes() != null)
+            {
+                var startTimeString = System.Text.Encoding.UTF8.GetString(startTimeHeader.GetValueBytes());
+                if (DateTime.TryParseExact(startTimeString, "O", null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsedStartTime))
+                    startTime = parsedStartTime;
+            }
+            
+            var result = await mediator.Send(new ScanQrCodeCommand(message.VideoId, startTime), stoppingToken);
                     
             consumer.Commit(consumeResult);
                     

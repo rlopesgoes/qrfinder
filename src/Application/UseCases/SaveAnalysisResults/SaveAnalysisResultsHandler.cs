@@ -24,6 +24,7 @@ public class SaveAnalysisResultsHandler(IAnalysisResultWriteOnlyRepository analy
             "Completed",
             request.CompletedAt.AddSeconds(-request.ProcessingTimeMs / 1000).DateTime,
             request.CompletedAt.DateTime,
+            request.ProcessingTimeMs,
             qrCodes.Count,
             new(qrCodes));
 

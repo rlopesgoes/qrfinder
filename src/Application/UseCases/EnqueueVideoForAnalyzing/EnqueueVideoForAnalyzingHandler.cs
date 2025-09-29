@@ -22,11 +22,11 @@ public class EnqueueVideoForAnalyzingHandler(
         if (status.Stage is not Stage.Created)
             return Result<EnqueueVideoForAnalyzingResult>.WithError($"Video {command.VideoId} is already being processed");
         
+        var enqueuedAt = DateTime.UtcNow;
+        
         var enqueueResult = await videoAnalysisQueue.EnqueueAsync(command.VideoId, cancellationToken);
         if (!enqueueResult.IsSuccess)
             return Result<EnqueueVideoForAnalyzingResult>.FromResult(enqueueResult);
-        
-        var enqueuedAt = DateTime.UtcNow;
         
         var upsertResult = await statusWriteOnlyRepository.UpsertAsync(new (command.VideoId, Stage.Sent), cancellationToken);
         if (!upsertResult.IsSuccess)

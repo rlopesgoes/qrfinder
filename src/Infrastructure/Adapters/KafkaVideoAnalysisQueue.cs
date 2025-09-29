@@ -12,6 +12,7 @@ internal sealed class KafkaVideoAnalysisQueue(
     : IVideoAnalysisQueue
 {
     private const string Topic = "video.analysis.queue";
+    private const string StartProcessTime = "x-started-at";
 
     public async Task<Result> EnqueueAsync(string videoId, CancellationToken cancellationToken)
     {
@@ -27,7 +28,8 @@ internal sealed class KafkaVideoAnalysisQueue(
             await producer.ProduceAsync(Topic, new Message<string, string>
             {
                 Key = videoId,
-                Value = json
+                Value = json,
+                Headers = [ new Header(StartProcessTime, System.Text.Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString("O"))) ]
             }, cancellationToken);
             
             return Result.Success();

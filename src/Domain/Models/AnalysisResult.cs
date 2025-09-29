@@ -5,5 +5,6 @@ public record AnalysisResult(
     string Status,
     DateTime StartedAt,
     DateTime? CompletedAt,
+    double ProcessingTimeMs,
     int TotalQrCodes,
     QrCodes QrCodes);

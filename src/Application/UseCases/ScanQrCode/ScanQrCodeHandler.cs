@@ -36,7 +36,9 @@ public class ScanQrCodeHandler(
         await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Processing), cancellationToken);
         await progressNotifier.NotifyAsync(new ProgressNotification(videoId.ToString(), nameof(Stage.Processing), 50), cancellationToken);
 
-        var startTime = DateTimeOffset.UtcNow;
+        var startTime = command.StartedAt.HasValue 
+            ? new DateTimeOffset(command.StartedAt.Value, TimeSpan.Zero)
+            : DateTimeOffset.UtcNow;
         
         var videoResult = await videosReadOnlyRepository.GetAsync(videoId.ToString(), cancellationToken);
         if (!videoResult.IsSuccess)
@@ -60,7 +62,9 @@ public class ScanQrCodeHandler(
         
         logger.LogInformation("Video {VideoId} is in the processed state", videoId.ToString());
         
-        var processingTime = DateTimeOffset.UtcNow.Subtract(startTime).TotalMilliseconds;
+        var endTime = DateTimeOffset.UtcNow;
+        var processingTime = endTime.Subtract(startTime).TotalMilliseconds;
+        var totalProcessingTime = endTime.Subtract(startTime).TotalSeconds;
         
         var uniqueQrCodes = qrCodes.Values
             .Where(qr => !string.IsNullOrWhiteSpace(qr.Content))
@@ -75,8 +79,9 @@ public class ScanQrCodeHandler(
         var resultMessage = new
         {
             VideoId = videoId.ToString(),
-            CompletedAt = DateTimeOffset.UtcNow,
+            CompletedAt = endTime,
             ProcessingTimeMs = processingTime,
+            TotalProcessingTimeSeconds = totalProcessingTime,
             QrCodes = uniqueQrCodes.Select(qr => new
             {
                 Text = qr.Content,

@@ -1,83 +1,157 @@
-.PHONY: help infra-up infra-down infra-logs infra-ps full-up full-down clean build-api build-worker run-api run-worker scale-up scale-down
+# QrFinder Project Makefile
 
-help:
-	@echo "QRFinder - Comandos Disponíveis:"
+COMPOSE = docker-compose
+SCRIPTS_DIR = scripts
+
+# Cores para output
+GREEN = \033[0;32m
+YELLOW = \033[1;33m
+RED = \033[0;31m
+NC = \033[0m
+
+.PHONY: help up down build logs clean upload upload-fixed test-upload status results
+
+help: ## Mostra esta ajuda
+	@echo "$(GREEN)QrFinder - Comandos Disponíveis:$(NC)"
 	@echo ""
-	@echo "🏗️  INFRAESTRUTURA:"
-	@echo "  make infra-up        - Sobe apenas a infraestrutura"
-	@echo "  make infra-down      - Para a infraestrutura"
-	@echo "  make infra-logs      - Mostra logs da infraestrutura"
-	@echo "  make infra-ps        - Status dos containers"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+
+# Docker Commands
+up: ## Sobe todos os serviços
+	@echo "$(GREEN)🚀 Subindo todos os serviços...$(NC)"
+	$(COMPOSE) up -d --remove-orphans
+
+down: ## Para todos os serviços
+	@echo "$(RED)⏹️ Parando todos os serviços...$(NC)"
+	$(COMPOSE) down
+
+build: ## Rebuild todos os containers
+	@echo "$(YELLOW)🔨 Fazendo rebuild dos containers...$(NC)"
+	$(COMPOSE) build
+
+logs: ## Mostra logs de todos os serviços
+	@echo "$(GREEN)📋 Logs dos serviços...$(NC)"
+	$(COMPOSE) logs -f
+
+clean: ## Remove containers, imagens e volumes
+	@echo "$(RED)🧹 Limpando containers, imagens e volumes...$(NC)"
+	$(COMPOSE) down -v --rmi all --remove-orphans
+
+# Worker-specific commands
+logs-analysis: ## Logs do Analysis Worker
+	$(COMPOSE) logs -f analysis-worker
+
+logs-notifications: ## Logs do Notifications Worker
+	$(COMPOSE) logs -f notifications-worker
+
+logs-results: ## Logs do Results Worker
+	$(COMPOSE) logs -f results-worker
+
+logs-signalr: ## Logs do SignalR Server
+	$(COMPOSE) logs -f signalr-server
+
+# Video Upload Commands
+upload: ## Upload de vídeo (uso: make upload VIDEO=meu_video.mp4)
+ifndef VIDEO
+	@echo "$(RED)❌ Erro: Especifique o vídeo com VIDEO=arquivo$(NC)"
+	@echo "$(YELLOW)📌 Exemplo: make upload VIDEO=example.mp4$(NC)"
+	@exit 1
+endif
+	@echo "$(GREEN)📤 Fazendo upload do vídeo: $(VIDEO)$(NC)"
+	@chmod +x $(SCRIPTS_DIR)/simple_upload.sh
+	@$(SCRIPTS_DIR)/simple_upload.sh $(VIDEO)
+
+upload-full: ## Upload com interface completa (uso: make upload-full VIDEO=meu_video.mp4)
+ifndef VIDEO
+	@echo "$(RED)❌ Erro: Especifique o vídeo com VIDEO=arquivo$(NC)"
+	@echo "$(YELLOW)📌 Exemplo: make upload-full VIDEO=example.mp4$(NC)"
+	@exit 1
+endif
+	@echo "$(GREEN)📤 Fazendo upload completo do vídeo: $(VIDEO)$(NC)"
+	@chmod +x $(SCRIPTS_DIR)/upload_video.sh
+	@$(SCRIPTS_DIR)/upload_video.sh $(VIDEO)
+
+test-upload: ## Faz upload de um vídeo de teste
+	@echo "$(YELLOW)🎬 Testando upload...$(NC)"
+	@if [ ! -f example.mp4 ]; then echo "$(RED)❌ Coloque um arquivo 'example.mp4' na raiz do projeto$(NC)"; exit 1; fi
+	@make upload VIDEO=example.mp4
+
+# API Commands
+status: ## Verifica status de um vídeo (uso: make status VIDEO_ID=uuid)
+ifndef VIDEO_ID
+	@echo "$(RED)❌ Erro: Especifique o VIDEO_ID$(NC)"
+	@echo "$(YELLOW)📌 Exemplo: make status VIDEO_ID=12345678-1234-1234-1234-123456789abc$(NC)"
+	@exit 1
+endif
+	@echo "$(GREEN)📊 Status do vídeo $(VIDEO_ID):$(NC)"
+	@curl -s http://localhost/video/$(VIDEO_ID)/status | jq . || echo "$(RED)❌ Erro ao buscar status$(NC)"
+
+results: ## Mostra resultados de um vídeo (uso: make results VIDEO_ID=uuid)
+ifndef VIDEO_ID
+	@echo "$(RED)❌ Erro: Especifique o VIDEO_ID$(NC)"
+	@echo "$(YELLOW)📌 Exemplo: make results VIDEO_ID=12345678-1234-1234-1234-123456789abc$(NC)"
+	@exit 1
+endif
+	@echo "$(GREEN)📋 Resultados do vídeo $(VIDEO_ID):$(NC)"
+	@curl -s http://localhost/video/$(VIDEO_ID)/results | jq . || echo "$(RED)❌ Erro ao buscar resultados$(NC)"
+
+# Health checks
+health: ## Verifica saúde dos serviços
+	@echo "$(GREEN)🏥 Verificando saúde dos serviços...$(NC)"
+	@echo "WebAPI:"
+	@curl -s http://localhost/health 2>/dev/null || echo "$(RED)❌ WebAPI não responde$(NC)"
+	@echo "\nSignalR Server:"
+	@curl -s http://localhost:5010/health 2>/dev/null || echo "$(RED)❌ SignalR não responde$(NC)"
+	@echo "\nContainers:"
+	@$(COMPOSE) ps
+
+# Development helpers
+dev: ## Ambiente de desenvolvimento (up + logs)
+	@make up
+	@sleep 5
+	@make logs
+
+restart: ## Restart todos os serviços
+	@echo "$(YELLOW)🔄 Reiniciando serviços...$(NC)"
+	@make down
+	@make up
+
+restart-worker: ## Restart específico worker (uso: make restart-worker WORKER=analysis)
+ifndef WORKER
+	@echo "$(RED)❌ Erro: Especifique o WORKER$(NC)"
+	@echo "$(YELLOW)📌 Workers: analysis, notifications, results$(NC)"
+	@exit 1
+endif
+	@echo "$(YELLOW)🔄 Reiniciando $(WORKER)-worker...$(NC)"
+	$(COMPOSE) restart $(WORKER)-worker
+
+# Quick actions
+quick-test: ## Teste rápido completo
+	@echo "$(GREEN)🚀 Teste rápido completo...$(NC)"
+	@make up
+	@sleep 10
+	@make test-upload
+
+upload-fixed: ## Upload do vídeo fixo WhatsApp
+	@echo "$(GREEN)📤 Fazendo upload do vídeo fixo WhatsApp...$(NC)"
+	@chmod +x $(SCRIPTS_DIR)/simple_upload.sh
+	@$(SCRIPTS_DIR)/simple_upload.sh "/Users/renatojsilva-dev/Downloads/WhatsApp Video 2025-09-21 at 17.47.53.mp4"
+
+# Exemplos
+examples: ## Mostra exemplos de uso
+	@echo "$(GREEN)📚 Exemplos de Uso:$(NC)"
 	@echo ""
-	@echo "🚀  APLICAÇÃO COMPLETA:"
-	@echo "  make full-up         - Sobe tudo (infra + API + Worker)"
-	@echo "  make full-down       - Para tudo"
-	@echo "  make scale-up        - Escala WebAPI para 5 réplicas (portas 5000-5004)"
-	@echo "  make scale-down      - Volta WebAPI para 1 réplica"
+	@echo "$(YELLOW)1. Subir ambiente:$(NC)"
+	@echo "   make up"
 	@echo ""
-	@echo "💻  DESENVOLVIMENTO LOCAL:"
-	@echo "  make build-api       - Builda a API"
-	@echo "  make build-worker    - Builda o Worker"
-	@echo "  make run-api         - Roda API localmente"
-	@echo "  make run-worker      - Roda Worker localmente"
+	@echo "$(YELLOW)2. Upload de vídeo:$(NC)"
+	@echo "   make upload VIDEO=meu_video.mp4"
 	@echo ""
-	@echo "🧹  LIMPEZA:"
-	@echo "  make clean           - Remove containers e volumes"
-
-infra-up:
-	@echo "🏗️  Subindo infraestrutura..."
-	docker-compose -f docker-compose.infra.yml up -d
-	@echo "✅ Infraestrutura rodando!"
-
-infra-down:
-	@echo "🛑 Parando infraestrutura..."
-	docker-compose -f docker-compose.infra.yml down
-
-infra-logs:
-	docker-compose -f docker-compose.infra.yml logs -f
-
-infra-ps:
-	docker-compose -f docker-compose.infra.yml ps
-
-full-up:
-	@echo "🚀 Subindo aplicação completa..."
-	docker-compose up -d
-	@echo "✅ Aplicação completa rodando!"
-
-full-down:
-	@echo "🛑 Parando aplicação completa..."
-	docker-compose down
-
-build-api:
-	@echo "🔨 Buildando API..."
-	cd src/WebApi && dotnet build
-
-build-worker:
-	@echo "🔨 Buildando Worker..."
-	cd src/Worker && dotnet build
-
-run-api:
-	@echo "💻 Rodando API localmente na porta 5000..."
-	@echo "📋 Acesse: http://localhost:5000/swagger"
-	cd src/WebApi && dotnet run --urls="http://localhost:5000"
-
-run-worker:
-	@echo "💻 Rodando Worker localmente..."
-	cd src/Worker && dotnet run
-
-scale-up:
-	@echo "📈 Escalando WebAPI para 5 réplicas..."
-	docker-compose up -d --scale webapi=5
-	@echo "✅ WebAPI rodando em 5 réplicas com load balancer!"
-
-scale-down:
-	@echo "📉 Voltando WebAPI para 1 réplica..."
-	docker-compose up -d --scale webapi=1
-	@echo "✅ WebAPI rodando em 1 réplica!"
-
-clean:
-	@echo "🧹 Limpando containers, volumes e imagens..."
-	docker-compose down -v --remove-orphans
-	docker-compose -f docker-compose.infra.yml down -v --remove-orphans
-	docker system prune -f
-	@echo "✅ Limpeza concluída!"
+	@echo "$(YELLOW)3. Upload vídeo fixo:$(NC)"
+	@echo "   make upload-fixed"
+	@echo ""
+	@echo "$(YELLOW)4. Verificar logs:$(NC)"
+	@echo "   make logs-analysis"
+	@echo ""
+	@echo "$(YELLOW)5. Ver resultados:$(NC)"
+	@echo "   make results VIDEO_ID=uuid-do-video"

@@ -10,7 +10,7 @@ public class SignalRServerChannel(ILogger<SignalRServerChannel> logger)
     : INotificationChannel, IDisposable
 {
     private readonly HubConnection _hubConnection = new HubConnectionBuilder()
-        .WithUrl("http://localhost:5010/notificationHub")
+        .WithUrl(Environment.GetEnvironmentVariable("SIGNALR_HUB_URL") ?? "http://localhost:5010/notificationHub")
         .Build();
 
     public string ChannelName => "SignalRServer";

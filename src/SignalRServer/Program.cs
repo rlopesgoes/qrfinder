@@ -25,6 +25,6 @@ app.MapHub<NotificationHub>("/notificationHub");
 
 app.MapGet("/health", () => Results.Ok("SignalR Server is running"));
 
-app.Urls.Add("http://localhost:5010");
+app.Urls.Add("http://0.0.0.0:5010");
 
 app.Run();

@@ -13,7 +13,7 @@ public class NotificationConsumer(
     ILogger<NotificationConsumer> logger)
     : BackgroundService
 {
-    private const string VideoProgressNotificationsTopic = "video.progress.notifications";
+    private const string VideoProgressNotificationsTopic = "video.progress";
     private static JsonSerializerOptions JsonOptions => new()
     {
         PropertyNameCaseInsensitive = true,
@@ -25,6 +25,8 @@ public class NotificationConsumer(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        logger.LogInformation("Starting notification consumer");
+        
         consumer.Subscribe(VideoProgressNotificationsTopic);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -39,6 +41,8 @@ public class NotificationConsumer(
                 if (notification is null)
                     continue;
                 
+                logger.LogInformation("Processing notification for video {VideoId}", notification.VideoId);
+                
                 var result = await mediator.Send(new SendNotificationsCommand(
                     notification.VideoId,
                     notification.Stage,
@@ -47,6 +51,8 @@ public class NotificationConsumer(
                     notification.Timestamp), stoppingToken);
                     
                 consumer.Commit(consumeResult);
+                
+                logger.LogInformation("Notification processed for video {VideoId}", notification.VideoId);
                 
                 if (!result.IsSuccess)
                     logger.LogError("Failed to process notification for video {VideoId}: {Error}", notification.VideoId, result.Error?.Message);

@@ -2,10 +2,12 @@ using Application.Ports;
 using Domain.Common;
 using Domain.Models;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace Application.UseCases.ScanQrCode;
 
 public class ScanQrCodeHandler(
+    ILogger<ScanQrCodeHandler> logger,
     IQrCodeScanner qrCodeScanner,
     IStatusReadOnlyRepository statusReadOnlyRepository,
     IStatusWriteOnlyRepository statusWriteOnlyRepository,
@@ -19,6 +21,8 @@ public class ScanQrCodeHandler(
     {
         var videoId = VideoId.From(command.VideoId);
         
+        logger.LogInformation("Scanning QR codes for video {VideoId}", videoId.ToString());
+        
         var currentStatusResult = await statusReadOnlyRepository.GetAsync(videoId.ToString(), cancellationToken);
         if (!currentStatusResult.IsSuccess)
             return Result<ScanQrCodeResult>.FromResult(currentStatusResult);
@@ -26,6 +30,8 @@ public class ScanQrCodeHandler(
 
         if (currentStatus.Stage is not Stage.Sent)
             return Result<ScanQrCodeResult>.WithError($"Video {videoId.ToString()} is not in the sent state");
+        
+        logger.LogInformation("Video {VideoId} is in the sent state", videoId.ToString());
 
         await statusWriteOnlyRepository.UpsertAsync(new Status(videoId.ToString(), Stage.Processing), cancellationToken);
         await progressNotifier.NotifyAsync(new ProgressNotification(videoId.ToString(), nameof(Stage.Processing), 50), cancellationToken);
@@ -41,6 +47,8 @@ public class ScanQrCodeHandler(
         }
         var video = videoResult.Value!;
         
+        logger.LogInformation("Video {VideoId} is in the processing state", videoId.ToString());
+        
         var qrCodesResult = await qrCodeScanner.ScanAsync(video, cancellationToken);
         if (!qrCodesResult.IsSuccess)
         {
@@ -49,6 +57,8 @@ public class ScanQrCodeHandler(
             return Result<ScanQrCodeResult>.FromResult(qrCodesResult);
         }
         var qrCodes = qrCodesResult.Value!;
+        
+        logger.LogInformation("Video {VideoId} is in the processed state", videoId.ToString());
         
         var processingTime = DateTimeOffset.UtcNow.Subtract(startTime).TotalMilliseconds;
         
@@ -78,6 +88,8 @@ public class ScanQrCodeHandler(
         await resultsPublisher.PublishResultsAsync(videoId.ToString(), resultMessage, cancellationToken);
 
         await videosWriteOnlyRepository.DeleteAsync(videoId.ToString(), cancellationToken);
+        
+        logger.LogInformation("Video {VideoId} is in the deleted state", videoId.ToString());
         
         return new ScanQrCodeResult(
             VideoId: command.VideoId,

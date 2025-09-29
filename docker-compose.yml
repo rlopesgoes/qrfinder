@@ -50,6 +50,54 @@ services:
     networks:
       - qrfinder-network
 
+  results-worker:
+    build:
+      context: .
+      dockerfile: src/ResultsWorker/Dockerfile
+    platform: linux/amd64
+    container_name: qrfinder-results-worker
+    environment:
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_GROUP_ID=results-group
+    depends_on:
+      - mongo
+      - kafka-topics-init
+    networks:
+      - qrfinder-network
+
+  notifications-worker:
+    build:
+      context: .
+      dockerfile: src/NotificationsWorker/Dockerfile
+    platform: linux/amd64
+    container_name: qrfinder-notifications-worker
+    environment:
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_GROUP_ID=notifications-group
+      - SIGNALR_HUB_URL=http://signalr-server:5010/notificationHub
+    depends_on:
+      - mongo
+      - kafka-topics-init
+      - signalr-server
+    networks:
+      - qrfinder-network
+
+  signalr-server:
+    build:
+      context: .
+      dockerfile: src/SignalRServer/Dockerfile
+    platform: linux/amd64
+    container_name: qrfinder-signalr-server
+    ports:
+      - "5010:5010"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:5010
+    networks:
+      - qrfinder-network
+
   mongo:
     image: mongo:7.0
     container_name: qrfinder-mongo

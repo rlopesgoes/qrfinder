@@ -17,6 +17,8 @@ public class ResultsConsumer(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        logger.LogInformation("Starting ResultsConsumer");
+        
         consumer.Subscribe(TopicResults);
 
         while (!stoppingToken.IsCancellationRequested)
@@ -30,6 +32,8 @@ public class ResultsConsumer(
                 var videoResultMessage = JsonSerializer.Deserialize<VideoResultMessage>(consumeResult.Message.Value);
                 if (videoResultMessage is null)
                     continue;
+                
+                logger.LogInformation("Processing video {VideoId}", videoResultMessage.VideoId);
 
                 var command = new SaveAnalysisResultsCommand(
                     videoResultMessage.VideoId,
@@ -44,6 +48,8 @@ public class ResultsConsumer(
                         result.Error?.Message);
 
                 consumer.Commit(consumeResult);
+                
+                logger.LogInformation("Video {VideoId} processed", videoResultMessage.VideoId);
             }
             catch (OperationCanceledException)
             {

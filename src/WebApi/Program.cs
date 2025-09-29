@@ -38,3 +38,5 @@ app.UseSwaggerUI();
 app.MapVideosEndpoints();
 
 app.Run();
+
+public partial class Program { }

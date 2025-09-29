@@ -1,0 +1,154 @@
+version: '3.8'
+
+services:
+  # Infrastructure
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo 'ruok' | nc localhost 2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_NUM_PARTITIONS: 10
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+
+  kafka-topics-init:
+    image: confluentinc/cp-kafka:7.4.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ['/bin/sh', '-c']
+    command: |
+      "
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic video-analysis-queue --partitions 10 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic analysis-results --partitions 10 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic notifications --partitions 10 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:9092 --create --if-not-exists --topic progress-updates --partitions 10 --replication-factor 1
+      "
+
+  mongodb:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-admin123}
+      MONGO_INITDB_DATABASE: qrfinder
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Application Services
+  webapi:
+    image: ghcr.io/${GITHUB_REPOSITORY}/webapi:latest
+    depends_on:
+      kafka-topics-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      MongoDb__ConnectionString: mongodb://admin:${MONGO_PASSWORD:-admin123}@mongodb:27017/qrfinder?authSource=admin
+      MongoDb__DatabaseName: qrfinder
+      BlobStorage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING}
+      BlobStorage__ContainerName: ${AZURE_STORAGE_CONTAINER_NAME:-videos}
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__VideoAnalysisQueue: video-analysis-queue
+      Kafka__AnalysisResults: analysis-results
+      Kafka__Notifications: notifications
+      Kafka__ProgressUpdates: progress-updates
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  webapp:
+    image: ghcr.io/${GITHUB_REPOSITORY}/webapp:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+  analysis-worker:
+    image: ghcr.io/${GITHUB_REPOSITORY}/analysis-worker:latest
+    depends_on:
+      kafka-topics-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    environment:
+      MongoDb__ConnectionString: mongodb://admin:${MONGO_PASSWORD:-admin123}@mongodb:27017/qrfinder?authSource=admin
+      MongoDb__DatabaseName: qrfinder
+      BlobStorage__ConnectionString: ${AZURE_STORAGE_CONNECTION_STRING}
+      BlobStorage__ContainerName: ${AZURE_STORAGE_CONTAINER_NAME:-videos}
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__VideoAnalysisQueue: video-analysis-queue
+      Kafka__AnalysisResults: analysis-results
+      Kafka__Notifications: notifications
+      Kafka__ProgressUpdates: progress-updates
+
+  results-worker:
+    image: ghcr.io/${GITHUB_REPOSITORY}/results-worker:latest
+    depends_on:
+      kafka-topics-init:
+        condition: service_completed_successfully
+      mongodb:
+        condition: service_healthy
+    environment:
+      MongoDb__ConnectionString: mongodb://admin:${MONGO_PASSWORD:-admin123}@mongodb:27017/qrfinder?authSource=admin
+      MongoDb__DatabaseName: qrfinder
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__AnalysisResults: analysis-results
+
+  notifications-worker:
+    image: ghcr.io/${GITHUB_REPOSITORY}/notifications-worker:latest
+    depends_on:
+      kafka-topics-init:
+        condition: service_completed_successfully
+    environment:
+      Kafka__BootstrapServers: kafka:9092
+      Kafka__Notifications: notifications
+      SignalRServer__Url: http://signalr-server:8080
+
+  signalr-server:
+    image: ghcr.io/${GITHUB_REPOSITORY}/signalr-server:latest
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+
+  # Load Balancer
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - webapi
+      - webapp
+      - signalr-server
+
+volumes:
+  mongodb_data:

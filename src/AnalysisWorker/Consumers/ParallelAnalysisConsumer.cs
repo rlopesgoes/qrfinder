@@ -13,8 +13,8 @@ public class ParallelAnalysisConsumer(
     IConfiguration configuration) : BackgroundService
 {
     private const string TopicControl = "video.analysis.queue";
-    private readonly int _maxConcurrency = configuration.GetValue<int>("AnalysisWorker:MaxConcurrency", 3);
-    private readonly SemaphoreSlim _semaphore = new(configuration.GetValue<int>("AnalysisWorker:MaxConcurrency", 3));
+    private readonly int _maxConcurrency = configuration.GetValue<int>("AnalysisWorker:MaxConcurrency", 1);
+    private readonly SemaphoreSlim _semaphore = new(configuration.GetValue<int>("AnalysisWorker:MaxConcurrency", 1));
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -27,7 +27,7 @@ public class ParallelAnalysisConsumer(
         {
             try
             {
-                var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(100));
+                var consumeResult = consumer.Consume(TimeSpan.FromMilliseconds(1000));
                 if (consumeResult is null)
                 {
                     // Limpa tasks completadas

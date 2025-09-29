@@ -33,8 +33,15 @@ internal sealed class UploadLinkGenerator : IUploadLinkGenerator
     {
         try
         {
-            if (!await _containerClient.ExistsAsync(cancellationToken))
-                await _containerClient.CreateAsync(cancellationToken: cancellationToken);
+            try
+            {
+                await _containerClient.CreateIfNotExistsAsync(cancellationToken: cancellationToken);
+            }
+            catch (Exception ex) when (ex.Message.Contains("ContainerAlreadyExists"))
+            {
+                // Container already exists, this is fine in concurrent scenarios
+                _logger.LogDebug("Container already exists for video {VideoId}", videoId);
+            }
             
             var blobClient = _containerClient.GetBlobClient(videoId);
             var expiresAt = DateTimeOffset.UtcNow.Add(_expiryTime);

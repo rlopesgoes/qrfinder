@@ -9,7 +9,7 @@ YELLOW = \033[1;33m
 RED = \033[0;31m
 NC = \033[0m
 
-.PHONY: help up down build logs clean upload upload-fixed test-upload status results demo-basic demo-scaled scale-all
+.PHONY: help up down build logs clean upload upload-fixed test-upload status results demo-basic demo-scaled scale-all load-test monitor clean-state clean-mongo restart-workers reset-kafka-topics
 
 help: ## Mostra esta ajuda
 	@echo "$(GREEN)QrFinder - Comandos Disponíveis:$(NC)"
@@ -118,16 +118,16 @@ demo-basic: ## 🚀 Demo básico: 1 instância de cada serviço
 	@echo "  • 📊 Kafka UI: http://localhost:5004"
 	@echo "  • 🗄️ Mongo Express: http://localhost:5005 (admin/admin123)"
 
-demo-scaled: ## 🔥 Demo escalado: 5 APIs + 10 Analysis Workers + 1 Results + 1 Notifications
+demo-scaled: ## 🔥 Demo escalado: 3 APIs + 3 Analysis Workers + 1 Results + 1 Notifications
 	@echo "$(GREEN)🔥 Subindo ambiente escalado...$(NC)"
-	@echo "$(YELLOW)📈 Configuração: 5 APIs, 10 Analysis, 1 Results, 1 Notifications$(NC)"
+	@echo "$(YELLOW)📈 Configuração: 3 APIs, 3 Analysis (3 threads), 1 Results, 1 Notifications$(NC)"
 	@$(COMPOSE) down
-	@$(COMPOSE) up -d --scale webapi=5 --scale analysis-worker=10 --scale results-worker=1 --scale notifications-worker=1
+	@$(COMPOSE) up -d --scale webapi=3 --scale analysis-worker=3 --scale results-worker=1 --scale notifications-worker=1
 	@echo "$(GREEN)✅ Ambiente escalado rodando!$(NC)"
 	@echo "$(YELLOW)🎬 WebApp (Upload UI): http://localhost/app$(NC)"
-	@echo "$(YELLOW)📊 Load balancer (Nginx): http://localhost$(NC)"
+	@echo "$(YELLOW)📊 Load Balancer (Nginx): http://localhost$(NC)"
 	@echo "$(YELLOW)📋 Swagger: http://localhost/swagger/index.html$(NC)"
-	@echo "$(YELLOW)⚡ 10 workers processando em paralelo$(NC)"
+	@echo "$(YELLOW)⚡ 3 APIs + 3 workers processando em paralelo$(NC)"
 
 # Comandos de escala manual
 scale-all: ## Escala todos os serviços (uso: make scale-all API=3 ANALYSIS=5 RESULTS=2 NOTIFICATIONS=2)
@@ -169,6 +169,55 @@ upload-fixed: ## Upload do vídeo fixo WhatsApp
 	@chmod +x $(SCRIPTS_DIR)/simple_upload.sh
 	@$(SCRIPTS_DIR)/simple_upload.sh "/Users/renatojsilva-dev/Downloads/WhatsApp Video 2025-09-21 at 17.47.53.mp4"
 
+# Load Testing
+load-test: ## Executa teste de carga (20 vídeos concorrentes)
+	@echo "$(GREEN)🚀 Executando teste de carga: 20 vídeos concorrentes$(NC)"
+	@echo "$(YELLOW)🧹 Limpando estado anterior...$(NC)"
+	@make clean-mongo
+	@chmod +x $(SCRIPTS_DIR)/load-test.js
+	@node $(SCRIPTS_DIR)/load-test.js --videos=20
+
+load-test-custom: ## Teste de carga personalizado (uso: make load-test-custom VIDEOS=500 DURATION=3)
+	@VIDEOS_COUNT=$${VIDEOS:-100}; \
+	DURATION_MIN=$${DURATION:-2}; \
+	echo "$(GREEN)🚀 Teste personalizado: $$VIDEOS_COUNT vídeos em $$DURATION_MIN minutos$(NC)"; \
+	chmod +x $(SCRIPTS_DIR)/load-test.js; \
+	node $(SCRIPTS_DIR)/load-test.js --videos=$$VIDEOS_COUNT --duration=$$DURATION_MIN
+
+monitor: ## Monitora sistema durante teste de carga
+	@echo "$(GREEN)📊 Iniciando monitoramento do sistema$(NC)"
+	@chmod +x $(SCRIPTS_DIR)/monitor.sh
+	@$(SCRIPTS_DIR)/monitor.sh
+
+clean-state: ## Limpa estado de vídeos travados
+	@echo "$(YELLOW)🧹 Limpando coleções do MongoDB...$(NC)"
+	@docker exec qrfinder-mongo mongosh --quiet --eval "use qrfinder; db.statuses.deleteMany({}); db.analysisResults.deleteMany({}); print('✅ Estado limpo');" || echo "$(RED)⚠️  MongoDB não acessível$(NC)"
+	@echo "$(YELLOW)🔄 Recriando tópicos Kafka...$(NC)"
+	@make reset-kafka-topics
+	@echo "$(YELLOW)🔄 Reiniciando workers...$(NC)"
+	@make restart-workers
+
+clean-mongo: ## Limpa apenas MongoDB (sem recriar tópicos)
+	@echo "$(YELLOW)🧹 Limpando coleções do MongoDB...$(NC)"
+	@docker exec qrfinder-mongo mongosh --quiet --eval "use qrfinder; db.statuses.deleteMany({}); db.analysisResults.deleteMany({}); print('✅ Estado limpo');" || echo "$(RED)⚠️  MongoDB não acessível$(NC)"
+
+reset-kafka-topics: ## Recria tópicos Kafka otimizados
+	@echo "$(YELLOW)🗑️  Deletando tópicos antigos...$(NC)"
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic video.analysis.queue 2>/dev/null || true
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic video.progress 2>/dev/null || true
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic videos.results 2>/dev/null || true
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --delete --topic video.progress.notifications 2>/dev/null || true
+	@sleep 2
+	@echo "$(GREEN)✅ Criando tópicos...$(NC)"
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic video.analysis.queue --partitions 3 --replication-factor 1
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic video.progress --partitions 1 --replication-factor 1
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic videos.results --partitions 1 --replication-factor 1
+	@docker exec qrfinder-kafka kafka-topics --bootstrap-server localhost:29092 --create --topic video.progress.notifications --partitions 1 --replication-factor 1
+
+restart-workers: ## Reinicia todos os analysis workers
+	@echo "$(YELLOW)🔄 Reiniciando analysis workers...$(NC)"
+	@docker restart $$(docker ps --filter "name=qrfinder.*analysis-worker" --format "{{.Names}}") 2>/dev/null || echo "$(YELLOW)⚠️  Nenhum analysis worker encontrado$(NC)"
+
 # Exemplos
 examples: ## Mostra exemplos de uso
 	@echo "$(GREEN)📚 Exemplos de Uso:$(NC)"
@@ -187,3 +236,9 @@ examples: ## Mostra exemplos de uso
 	@echo ""
 	@echo "$(YELLOW)5. Teste de performance:$(NC)"
 	@echo "   make performance-test"
+	@echo ""
+	@echo "$(YELLOW)6. Teste de carga:$(NC)"
+	@echo "   make load-test"
+	@echo ""
+	@echo "$(YELLOW)7. Monitoramento:$(NC)"
+	@echo "   make monitor"

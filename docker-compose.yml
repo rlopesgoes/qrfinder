@@ -55,6 +55,7 @@ services:
       - KAFKA_GROUP_ID=analysis-group
       - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
       - AZURE_STORAGE_BASE_URL=http://azurite:10000
+      - AnalysisWorker__MaxConcurrency=1
     depends_on:
       mongo:
         condition: service_started
@@ -188,11 +189,11 @@ services:
           echo 'Kafka não está pronto, aguardando...'
           sleep 5
         done
-        echo 'Kafka está pronto! Criando tópicos com 10 partições...'
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 10 --replication-factor 1
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 10 --replication-factor 1
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 10 --replication-factor 1
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 10 --replication-factor 1
+        echo 'Kafka está pronto! Criando tópicos...'
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 1 --replication-factor 1
         echo 'Listando tópicos criados:'
         kafka-topics --bootstrap-server kafka:29092 --list
         echo 'Detalhes dos tópicos:'
@@ -200,7 +201,7 @@ services:
         kafka-topics --bootstrap-server kafka:29092 --describe --topic video.progress  
         kafka-topics --bootstrap-server kafka:29092 --describe --topic videos.results
         kafka-topics --bootstrap-server kafka:29092 --describe --topic video.progress.notifications
-        echo '✅ Todos os tópicos criados com 10 partições!'
+        echo '✅ Todos os tópicos criados!'
         echo 'Criando arquivo de sinalização...'
         touch /tmp/topics-ready
     networks:

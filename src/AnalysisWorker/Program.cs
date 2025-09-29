@@ -26,7 +26,11 @@ builder.Services.AddSingleton<IConsumer<string, string>>(sp =>
         BootstrapServers = bootstrap,
         GroupId = groupId,
         EnableAutoCommit = false,
-        AutoOffsetReset = AutoOffsetReset.Latest
+        AutoOffsetReset = AutoOffsetReset.Earliest,
+        SessionTimeoutMs = 30000,
+        MaxPollIntervalMs = 300000,
+        FetchMinBytes = 1,
+        FetchWaitMaxMs = 500
     };
     return new ConsumerBuilder<string, string>(conf).Build();
 });

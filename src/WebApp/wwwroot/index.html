@@ -511,15 +511,21 @@
             }, 3000); // Check every 3 seconds
         }
 
-        async function getResults(videoId) {
+        async function getResults(videoId, retryCount = 0) {
             try {
                 addLog('📊 Obtendo resultados...', 'info');
                 
                 const response = await fetch(`/app/video/${videoId}/results`);
                 
                 if (response.status === 204) {
-                    addLog('⏳ Resultados ainda não disponíveis', 'info');
-                    return;
+                    if (retryCount < 10) { // Tenta até 10 vezes (30 segundos)
+                        addLog('⏳ Resultados ainda não disponíveis, tentando novamente...', 'info');
+                        setTimeout(() => getResults(videoId, retryCount + 1), 3000);
+                        return;
+                    } else {
+                        addLog('⚠️ Timeout aguardando resultados', 'warning');
+                        return;
+                    }
                 }
                 
                 if (!response.ok) {

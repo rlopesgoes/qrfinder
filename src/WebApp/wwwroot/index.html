@@ -487,6 +487,13 @@
             pollInterval = setInterval(async () => {
                 try {
                     const response = await fetch(`/app/video/${videoId}/results`);
+                    
+                    if (response.status === 204) {
+                        // No content yet, keep polling
+                        console.log('No results yet, continuing to poll...');
+                        return;
+                    }
+                    
                     if (response.ok) {
                         const results = await response.json();
                         if (results.status === 'Processed') {
@@ -509,6 +516,12 @@
                 addLog('📊 Obtendo resultados...', 'info');
                 
                 const response = await fetch(`/app/video/${videoId}/results`);
+                
+                if (response.status === 204) {
+                    addLog('⏳ Resultados ainda não disponíveis', 'info');
+                    return;
+                }
+                
                 if (!response.ok) {
                     throw new Error('Erro ao obter resultados');
                 }

@@ -31,6 +31,19 @@ services:
     networks:
       - qrfinder-network
 
+  webapp:
+    build:
+      context: .
+      dockerfile: src/WebApp/Dockerfile
+    container_name: qrfinder-webapp
+    ports:
+      - "8080:5000"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:5000
+    networks:
+      - qrfinder-network
+
   analysis-worker:
     build:
       context: .
@@ -43,9 +56,12 @@ services:
       - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
       - AZURE_STORAGE_BASE_URL=http://azurite:10000
     depends_on:
-      - mongo
-      - kafka-topics-init
-      - azurite
+      mongo:
+        condition: service_started
+      azurite:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - qrfinder-network
 
@@ -59,8 +75,10 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_GROUP_ID=results-group
     depends_on:
-      - mongo
-      - kafka-topics-init
+      mongo:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
     networks:
       - qrfinder-network
 
@@ -75,9 +93,12 @@ services:
       - KAFKA_GROUP_ID=notifications-group
       - SIGNALR_HUB_URL=http://signalr-server:5010/notificationHub
     depends_on:
-      - mongo
-      - kafka-topics-init
-      - signalr-server
+      mongo:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
+      signalr-server:
+        condition: service_started
     networks:
       - qrfinder-network
 
@@ -158,19 +179,33 @@ services:
     container_name: qrfinder-kafka-topics-init
     depends_on:
       - kafka
-    command: >
-      bash -c "
-      echo 'Aguardando Kafka inicializar...'
-      sleep 30
-      echo 'Criando tópicos...'
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 10 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 1 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 1 --replication-factor 1
-      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 1 --replication-factor 1
-      echo 'Tópicos criados com sucesso!'
-      "
+    command:
+      - bash
+      - -c
+      - |
+        echo 'Aguardando Kafka inicializar...'
+        while ! kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
+          echo 'Kafka não está pronto, aguardando...'
+          sleep 5
+        done
+        echo 'Kafka está pronto! Criando tópicos com 10 partições...'
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 10 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 10 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 10 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 10 --replication-factor 1
+        echo 'Listando tópicos criados:'
+        kafka-topics --bootstrap-server kafka:29092 --list
+        echo 'Detalhes dos tópicos:'
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic video.analysis.queue
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic video.progress  
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic videos.results
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic video.progress.notifications
+        echo '✅ Todos os tópicos criados com 10 partições!'
+        echo 'Criando arquivo de sinalização...'
+        touch /tmp/topics-ready
     networks:
       - qrfinder-network
+    restart: "no"
 
   kafka-ui:
     image: provectuslabs/kafka-ui:latest

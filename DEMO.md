@@ -52,10 +52,11 @@ Ambos os ambientes incluem:
 
 | Serviço | URL | Descrição |
 |---------|-----|-----------|
-| **API Principal** | http://localhost | Upload e consulta de vídeos |
-| **Swagger** | http://localhost/swagger/index.html | Documentação da API |
-| **Kafka UI** | http://localhost:5004 | Monitoramento de filas |
-| **Mongo Express** | http://localhost:5005 | Database admin (admin/admin123) |
+| **🎬 WebApp (Upload UI)** | http://localhost/app | Interface web para upload com SignalR |
+| **🔧 API Principal** | http://localhost | Upload e consulta de vídeos |
+| **📋 Swagger** | http://localhost/swagger/index.html | Documentação da API |
+| **📊 Kafka UI** | http://localhost:5004 | Monitoramento de filas |
+| **🗄️ Mongo Express** | http://localhost:5005 | Database admin (admin/admin123) |
 
 ---
 

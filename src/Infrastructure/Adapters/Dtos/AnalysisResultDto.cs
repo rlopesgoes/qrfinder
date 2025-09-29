@@ -9,6 +9,7 @@ internal class AnalysisResultDto
     public string Status { get; set; } = null!;
     public DateTime StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
+    public double ProcessingTimeMs { get; set; }
     public List<QrCodeDto> QrCodes { get; set; } = new();
 
     public static AnalysisResultDto FromResult(AnalysisResult result)
@@ -20,6 +21,7 @@ internal class AnalysisResultDto
             Status = result.Status,
             StartedAt = result.StartedAt,
             CompletedAt = result.CompletedAt,
+            ProcessingTimeMs = result.ProcessingTimeMs,
             QrCodes = result.QrCodes.Values.Select(qr => new QrCodeDto
             {
                 Text = qr.Content,
@@ -37,6 +39,7 @@ internal class AnalysisResultDto
             Status,
             StartedAt,
             CompletedAt,
+            ProcessingTimeMs,
             QrCodes.Count,
             new QrCodes(QrCodes.Select(qr => new QrCode(
                 qr.Text,

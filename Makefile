@@ -112,10 +112,11 @@ demo-basic: ## 🚀 Demo básico: 1 instância de cada serviço
 	@$(COMPOSE) up -d
 	@echo "$(GREEN)✅ Ambiente básico rodando!$(NC)"
 	@echo "$(YELLOW)📊 Serviços disponíveis:$(NC)"
-	@echo "  • API: http://localhost"
-	@echo "  • Swagger: http://localhost/swagger/index.html"
-	@echo "  • Kafka UI: http://localhost:5004"
-	@echo "  • Mongo Express: http://localhost:5005 (admin/admin123)"
+	@echo "  • 🎬 WebApp (Upload UI): http://localhost/app"
+	@echo "  • 🔧 API: http://localhost"
+	@echo "  • 📋 Swagger: http://localhost/swagger/index.html"
+	@echo "  • 📊 Kafka UI: http://localhost:5004"
+	@echo "  • 🗄️ Mongo Express: http://localhost:5005 (admin/admin123)"
 
 demo-scaled: ## 🔥 Demo escalado: 5 APIs + 10 Analysis Workers + 1 Results + 1 Notifications
 	@echo "$(GREEN)🔥 Subindo ambiente escalado...$(NC)"
@@ -123,6 +124,7 @@ demo-scaled: ## 🔥 Demo escalado: 5 APIs + 10 Analysis Workers + 1 Results + 1
 	@$(COMPOSE) down
 	@$(COMPOSE) up -d --scale webapi=5 --scale analysis-worker=10 --scale results-worker=1 --scale notifications-worker=1
 	@echo "$(GREEN)✅ Ambiente escalado rodando!$(NC)"
+	@echo "$(YELLOW)🎬 WebApp (Upload UI): http://localhost/app$(NC)"
 	@echo "$(YELLOW)📊 Load balancer (Nginx): http://localhost$(NC)"
 	@echo "$(YELLOW)📋 Swagger: http://localhost/swagger/index.html$(NC)"
 	@echo "$(YELLOW)⚡ 10 workers processando em paralelo$(NC)"

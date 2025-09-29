@@ -19,8 +19,19 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc(name: "v1", new OpenApiInfo { Title = "QrFinder API", Version = "v1" });
 });
 
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyHeader()
+               .AllowAnyMethod();
+    });
+});
+
 WebApplication app = builder.Build();
 
+app.UseCors();
 app.UseSwagger();
 app.UseSwaggerUI();
 

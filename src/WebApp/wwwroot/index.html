@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QrFinder - Upload de Vídeo</title>
+    <script src="https://unpkg.com/@microsoft/signalr@latest/dist/browser/signalr.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 15px;
+            padding: 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background-color: #f8f9ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background-color: #f0f2ff;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+            margin: 10px;
+        }
+
+        .upload-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .upload-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            font-weight: bold;
+        }
+
+        .status.info {
+            background-color: #e3f2fd;
+            color: #1976d2;
+            border-left: 4px solid #1976d2;
+        }
+
+        .status.success {
+            background-color: #e8f5e8;
+            color: #2e7d32;
+            border-left: 4px solid #2e7d32;
+        }
+
+        .status.error {
+            background-color: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #c62828;
+        }
+
+        .status.warning {
+            background-color: #fff3e0;
+            color: #f57c00;
+            border-left: 4px solid #f57c00;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #f0f0f0;
+            border-radius: 10px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+
+        .logs {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 5px;
+        }
+
+        .log-entry.info {
+            background-color: #e3f2fd;
+        }
+
+        .log-entry.success {
+            background-color: #e8f5e8;
+        }
+
+        .log-entry.error {
+            background-color: #ffebee;
+        }
+
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .qr-code {
+            background-color: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .timestamp {
+            color: #666;
+            font-size: 0.8em;
+        }
+
+        .signalr-status {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .signalr-status.connected {
+            background-color: #4caf50;
+        }
+
+        .signalr-status.disconnected {
+            background-color: #f44336;
+        }
+
+        .signalr-status.connecting {
+            background-color: #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 QrFinder</h1>
+        
+        <div class="status info">
+            <span class="signalr-status disconnected" id="signalr-indicator"></span>
+            <span id="connection-status">Conectando ao SignalR...</span>
+        </div>
+
+        <div class="upload-area" id="upload-area">
+            <h3>📤 Arraste um vídeo aqui ou clique para selecionar</h3>
+            <p>Formatos suportados: MP4, AVI, MOV</p>
+            <input type="file" id="video-file" accept="video/*">
+            <button class="upload-btn" onclick="document.getElementById('video-file').click()">
+                Selecionar Vídeo
+            </button>
+        </div>
+
+        <div id="file-info" style="display: none;">
+            <p><strong>Arquivo:</strong> <span id="file-name"></span></p>
+            <p><strong>Tamanho:</strong> <span id="file-size"></span></p>
+            <button class="upload-btn" id="upload-btn" onclick="uploadVideo()">
+                🚀 Fazer Upload e Analisar
+            </button>
+        </div>
+
+        <div id="progress-section" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <p id="progress-text">0%</p>
+        </div>
+
+        <div id="status-section"></div>
+
+        <div class="logs" id="logs" style="display: none;">
+            <h4>📋 Logs de Processamento</h4>
+            <div id="log-entries"></div>
+        </div>
+
+        <div id="results-section" style="display: none;">
+            <h3>🎯 Resultados dos QR Codes</h3>
+            <div id="results-content"></div>
+        </div>
+    </div>
+
+    <script>
+        let connection;
+        let currentVideoId = null;
+        let selectedFile = null;
+
+        // Initialize SignalR connection
+        async function initSignalR() {
+            connection = new signalR.HubConnectionBuilder()
+                .withUrl("/app/notificationHub")
+                .build();
+
+            connection.onclose(() => {
+                updateConnectionStatus('disconnected', 'Desconectado do SignalR');
+                setTimeout(initSignalR, 5000); // Retry connection
+            });
+
+            connection.on("progress", (data) => {
+                console.log("Received SignalR progress:", data);
+                handleProgressUpdate(data);
+            });
+
+            try {
+                await connection.start();
+                updateConnectionStatus('connected', 'Conectado ao SignalR');
+                console.log("SignalR Connected");
+            } catch (err) {
+                updateConnectionStatus('disconnected', 'Erro na conexão SignalR');
+                console.error("SignalR Error: ", err);
+                setTimeout(initSignalR, 5000);
+            }
+        }
+
+        function updateConnectionStatus(status, message) {
+            const indicator = document.getElementById('signalr-indicator');
+            const statusText = document.getElementById('connection-status');
+            
+            indicator.className = `signalr-status ${status}`;
+            statusText.textContent = message;
+        }
+
+        function handleProgressUpdate(data) {
+            // Handle SignalR data format
+            const stage = data.stage || data.Stage;
+            const percentage = data.percent || data.progressPercentage || data.ProgressPercentage;
+            
+            addLog(`📢 ${stage} - ${percentage || 0}%`, 'info');
+            
+            if (percentage) {
+                updateProgress(percentage);
+            }
+
+            if (stage === 'PROCESSED' || stage === 'Processed') {
+                clearInterval(pollInterval); // Stop polling since we got the final result
+                addLog('✅ Análise concluída! (via SignalR)', 'success');
+                setTimeout(() => getResults(currentVideoId), 1000);
+            }
+        }
+
+        function addLog(message, type = 'info') {
+            const logsSection = document.getElementById('logs');
+            const logEntries = document.getElementById('log-entries');
+            
+            logsSection.style.display = 'block';
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+            logEntry.innerHTML = `<span class="timestamp">${new Date().toLocaleTimeString()}</span> ${message}`;
+            
+            logEntries.appendChild(logEntry);
+            logEntries.scrollTop = logEntries.scrollHeight;
+        }
+
+        function updateProgress(percentage) {
+            const progressSection = document.getElementById('progress-section');
+            const progressFill = document.getElementById('progress-fill');
+            const progressText = document.getElementById('progress-text');
+            
+            progressSection.style.display = 'block';
+            progressFill.style.width = percentage + '%';
+            progressText.textContent = percentage + '%';
+        }
+
+        function showStatus(message, type = 'info') {
+            const statusSection = document.getElementById('status-section');
+            statusSection.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+
+        // File handling
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('video-file');
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (!file.type.startsWith('video/')) {
+                showStatus('⚠️ Por favor, selecione um arquivo de vídeo válido.', 'error');
+                return;
+            }
+
+            selectedFile = file;
+            document.getElementById('file-name').textContent = file.name;
+            document.getElementById('file-size').textContent = formatFileSize(file.size);
+            document.getElementById('file-info').style.display = 'block';
+            
+            showStatus('✅ Arquivo selecionado. Clique em "Fazer Upload" para continuar.', 'success');
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        async function uploadVideo() {
+            if (!selectedFile) {
+                showStatus('⚠️ Nenhum arquivo selecionado.', 'error');
+                return;
+            }
+
+            const uploadBtn = document.getElementById('upload-btn');
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '📤 Fazendo Upload...';
+
+            try {
+                // Step 1: Generate upload link
+                addLog('🔗 Gerando link de upload...', 'info');
+                showStatus('🔗 Gerando link de upload...', 'info');
+                
+                const linkResponse = await fetch('/app/video/upload-link/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                console.log('Response status:', linkResponse.status);
+                console.log('Response headers:', linkResponse.headers);
+                
+                if (!linkResponse.ok) {
+                    const errorText = await linkResponse.text();
+                    console.error('Error response:', errorText);
+                    throw new Error(`Erro ao gerar link de upload: ${linkResponse.status} - ${errorText}`);
+                }
+
+                const linkData = await linkResponse.json();
+                currentVideoId = linkData.videoId;
+                
+                // Convert Azurite URL to use nginx proxy to fix CORS
+                linkData.url = linkData.url.replace('http://localhost:10000', 'http://localhost/storage');
+                
+                addLog(`📋 Video ID: ${currentVideoId}`, 'info');
+
+                // Step 2: Upload file
+                addLog('📤 Fazendo upload do arquivo...', 'info');
+                showStatus('📤 Fazendo upload do arquivo...', 'warning');
+                
+                // Fix CORS: convert URL to use nginx proxy
+                const fixedUrl = linkData.url.replace('http://localhost:10000', 'http://localhost/storage');
+                console.log('Original URL:', linkData.url);
+                console.log('Fixed URL:', fixedUrl);
+                
+                const uploadResponse = await fetch(fixedUrl, {
+                    method: 'PUT',
+                    headers: {
+                        'x-ms-blob-type': 'BlockBlob',
+                        'Content-Type': selectedFile.type
+                    },
+                    body: selectedFile
+                });
+
+                if (!uploadResponse.ok) {
+                    throw new Error('Erro no upload do arquivo');
+                }
+
+                addLog('✅ Upload concluído!', 'success');
+
+                // Step 3: Start analysis
+                addLog('🔍 Iniciando análise...', 'info');
+                showStatus('🔍 Enviando para análise...', 'info');
+                
+                const analyzeResponse = await fetch(`/app/video/${currentVideoId}/analyze`, {
+                    method: 'PATCH'
+                });
+
+                if (!analyzeResponse.ok) {
+                    throw new Error('Erro ao iniciar análise');
+                }
+
+                addLog('🚀 Análise iniciada! Aguardando resultados...', 'success');
+                showStatus('🚀 Análise em andamento... Acompanhe o progresso em tempo real!', 'success');
+                updateProgress(0);
+
+                // Join SignalR group to receive notifications
+                if (connection && connection.state === signalR.HubConnectionState.Connected) {
+                    await connection.invoke("JoinVideoGroup", currentVideoId);
+                    addLog('📡 Conectado ao grupo de notificações SignalR', 'info');
+                }
+
+                // Start polling for results as backup if SignalR doesn't work
+                startResultPolling(currentVideoId);
+
+            } catch (error) {
+                addLog(`❌ Erro: ${error.message}`, 'error');
+                showStatus(`❌ Erro: ${error.message}`, 'error');
+            } finally {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = '🚀 Fazer Upload e Analisar';
+            }
+        }
+
+        let pollInterval;
+        
+        function startResultPolling(videoId) {
+            pollInterval = setInterval(async () => {
+                try {
+                    const response = await fetch(`/app/video/${videoId}/results`);
+                    if (response.ok) {
+                        const results = await response.json();
+                        if (results.status === 'Processed') {
+                            clearInterval(pollInterval);
+                            addLog('✅ Análise concluída! (via polling)', 'success');
+                            displayResults(results);
+                        } else if (results.status === 'Processing') {
+                            addLog('⏳ Ainda processando...', 'info');
+                            updateProgress(50); // Estimated progress
+                        }
+                    }
+                } catch (error) {
+                    console.log('Polling attempt failed:', error);
+                }
+            }, 3000); // Check every 3 seconds
+        }
+
+        async function getResults(videoId) {
+            try {
+                addLog('📊 Obtendo resultados...', 'info');
+                
+                const response = await fetch(`/app/video/${videoId}/results`);
+                if (!response.ok) {
+                    throw new Error('Erro ao obter resultados');
+                }
+
+                const results = await response.json();
+                displayResults(results);
+                addLog('✅ Resultados obtidos com sucesso!', 'success');
+                
+            } catch (error) {
+                addLog(`❌ Erro ao obter resultados: ${error.message}`, 'error');
+            }
+        }
+
+        function displayResults(results) {
+            const resultsSection = document.getElementById('results-section');
+            const resultsContent = document.getElementById('results-content');
+            
+            resultsContent.innerHTML = `
+                <p><strong>Status:</strong> ${results.status}</p>
+                <p><strong>Total de QR Codes:</strong> ${results.totalQrCodes}</p>
+                <p><strong>Concluído em:</strong> ${new Date(results.completedAt).toLocaleString()}</p>
+            `;
+
+            if (results.qrCodes && results.qrCodes.length > 0) {
+                const qrCodesHtml = results.qrCodes.map(qr => `
+                    <div class="qr-code">
+                        <strong>📱 ${qr.text}</strong><br>
+                        <small>⏰ ${qr.formattedTimestamp}</small>
+                    </div>
+                `).join('');
+                
+                resultsContent.innerHTML += `<h4>QR Codes Encontrados:</h4>${qrCodesHtml}`;
+            } else {
+                resultsContent.innerHTML += '<p>Nenhum QR Code encontrado no vídeo.</p>';
+            }
+            
+            resultsSection.style.display = 'block';
+            showStatus('🎉 Análise concluída! Confira os resultados abaixo.', 'success');
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', initSignalR);
+    </script>
+</body>
+</html>

@@ -244,10 +244,10 @@ public class DomainModelsTests
         {
             // Arrange
             var videoId = "test-video-id";
-            var stage = "Processing";
+            var stage = Stage.Processing;
             var progressPercentage = 50;
             var message = "Video is being processed";
-            var timestamp = DateTimeOffset.UtcNow;
+            var timestamp = DateTime.UtcNow;
 
             // Act
             var notification = new Notification(videoId, stage, progressPercentage, message, timestamp);
@@ -295,7 +295,7 @@ public class DomainModelsTests
             // Assert
             notification.VideoId.Should().Be(videoId);
             notification.Stage.Should().Be(stage);
-            notification.ProgressPercentage.Should().BeNull();
+            notification.ProgressPercentage.Should().Be(0);
             notification.Message.Should().BeNull();
         }
     }

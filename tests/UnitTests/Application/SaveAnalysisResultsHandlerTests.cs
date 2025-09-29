@@ -98,7 +98,7 @@ public class SaveAnalysisResultsHandlerTests
         // Assert
         _repository.Verify(x => x.SaveAsync(
             It.Is<AnalysisResult>(ar => 
-                ar.StartedAt.Should().BeCloseTo(expectedStartedAt, TimeSpan.FromSeconds(1))), 
+                Math.Abs((ar.StartedAt - expectedStartedAt).TotalSeconds) < 1), 
             It.IsAny<CancellationToken>()), Times.Once);
     }
 

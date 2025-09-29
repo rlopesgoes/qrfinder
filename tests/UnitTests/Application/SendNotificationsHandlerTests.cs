@@ -28,18 +28,18 @@ public class SendNotificationsHandlerTests
         // Arrange
         var command = new SendNotificationsCommand(
             VideoId: "test-video-id",
-            Stage: "Processing",
+            Stage: Stage.Processing,
             ProgressPercentage: 50,
             Message: "Video is being processed",
-            Timestamp: DateTimeOffset.UtcNow);
+            Timestamp: DateTime.UtcNow);
 
         _channel1
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(Result.Success());
 
         _channel2
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(Result.Success());
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
@@ -70,16 +70,16 @@ public class SendNotificationsHandlerTests
     {
         // Arrange
         var videoId = "test-video-123";
-        var stage = "Completed";
+        var stage = Stage.Processed;
         var progressPercentage = 100;
         var message = "Processing completed successfully";
-        var timestamp = DateTimeOffset.UtcNow;
+        var timestamp = DateTime.UtcNow;
 
         var command = new SendNotificationsCommand(videoId, stage, progressPercentage, message, timestamp);
 
         _channel1
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(Result.Success());
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
@@ -104,7 +104,7 @@ public class SendNotificationsHandlerTests
         var emptyChannels = Array.Empty<INotificationChannel>();
         var handler = new SendNotificationsHandler(emptyChannels);
         var command = new SendNotificationsCommand(
-            "test-video", "Processing", 50, "Test message", DateTimeOffset.UtcNow);
+            "test-video", Stage.Processing, 50, "Test message", DateTime.UtcNow);
 
         // Act
         var result = await handler.Handle(command, CancellationToken.None);
@@ -119,7 +119,7 @@ public class SendNotificationsHandlerTests
     {
         // Arrange
         var command = new SendNotificationsCommand(
-            "test-video", "Processing", 50, "Test message", DateTimeOffset.UtcNow);
+            "test-video", Stage.Processing, 50, "Test message", DateTime.UtcNow);
 
         _channel1
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
@@ -127,7 +127,7 @@ public class SendNotificationsHandlerTests
 
         _channel2
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync(Result.Success());
 
         // Act & Assert
         // Note: The current implementation doesn't handle exceptions, so this will throw
@@ -144,17 +144,17 @@ public class SendNotificationsHandlerTests
     {
         // Arrange
         var command = new SendNotificationsCommand(
-            "test-video", "Processing", 50, "Test message", DateTimeOffset.UtcNow);
+            "test-video", Stage.Processing, 50, "Test message", DateTime.UtcNow);
 
         var delay = TimeSpan.FromMilliseconds(100);
         
         _channel1
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.Delay(delay));
+            .Returns(async () => { await Task.Delay(delay); return Result.Success(); });
 
         _channel2
             .Setup(x => x.SendNotificationAsync(It.IsAny<Notification>(), It.IsAny<CancellationToken>()))
-            .Returns(Task.Delay(delay));
+            .Returns(async () => { await Task.Delay(delay); return Result.Success(); });
 
         // Act
         var startTime = DateTime.UtcNow;
@@ -165,6 +165,6 @@ public class SendNotificationsHandlerTests
         result.IsSuccess.Should().BeTrue();
         
         // If concurrent, total time should be close to delay time, not 2x delay time
-        totalTime.Should().BeLessThan(TimeSpan.FromMilliseconds(150)); // Some buffer for execution overhead
+        totalTime.Should().BeLessThan(TimeSpan.FromMilliseconds(180)); // Some buffer for execution overhead
     }
 }

@@ -1,21 +1,17 @@
-using DotNetEnv;
 using Application;
-using Application.Videos.Ports;
 using Infrastructure;
 using Microsoft.OpenApi.Models;
 using WebApi.Endpoints;
-using WebApi.Hubs;
-using WebApi.Notifiers;
+using WebApi.Messaging;
 
-Env.TraversePath().Load();
-        
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Host.UseLogging();
+
+builder.Services.AddMessaging(builder.Configuration);
+builder.Services.AddObservability();
 builder.Services.AddInfrastructure();
 builder.Services.AddApplication();
-
-builder.Services.AddSignalR();
-builder.Services.AddScoped<IUploadReporter, SignalRProgressNotifier>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -23,12 +19,24 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc(name: "v1", new OpenApiInfo { Title = "QrFinder API", Version = "v1" });
 });
 
-var app = builder.Build();
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(builder =>
+    {
+        builder.AllowAnyOrigin()
+               .AllowAnyHeader()
+               .AllowAnyMethod();
+    });
+});
 
+WebApplication app = builder.Build();
+
+app.UseCors();
 app.UseSwagger();
 app.UseSwaggerUI();
 
-app.MapHub<UploadProgressHub>("/hubs/upload");
 app.MapVideosEndpoints();
 
 app.Run();
+
+public partial class Program { }

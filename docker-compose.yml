@@ -1,4 +1,3 @@
-version: '3.8'
 
 services:
   nginx:
@@ -17,31 +16,109 @@ services:
     build:
       context: .
       dockerfile: src/WebApi/Dockerfile
-    container_name: qrfinder-webapi
-    ports:
-      - "5003:5000"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:5000
-      - MONGODB_CONNECTION_STRING=mongodb://mongo:27017/qrfinder
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ASPNETCORE_URLS=http://0.0.0.0:5001
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      - AZURE_STORAGE_BASE_URL=http://localhost:10000
+      - SEQ_URL=http://seq:5341
     depends_on:
       - mongo
       - kafka
+      - azurite
+      - seq
     networks:
       - qrfinder-network
 
-  worker:
+  webapp:
     build:
       context: .
-      dockerfile: src/Worker/Dockerfile
-    container_name: qrfinder-worker
+      dockerfile: src/WebApp/Dockerfile
+    container_name: qrfinder-webapp
+    ports:
+      - "8080:5000"
     environment:
-      - MONGODB_CONNECTION_STRING=mongodb://mongo:27017/qrfinder
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:5000
+    networks:
+      - qrfinder-network
+
+  analysis-worker:
+    build:
+      context: .
+      dockerfile: src/AnalysisWorker/Dockerfile
+    platform: linux/amd64
+    environment:
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_GROUP_ID=analysis-group
+      - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
+      - AZURE_STORAGE_BASE_URL=http://azurite:10000
+      - AnalysisWorker__MaxConcurrency=1
+      - SEQ_URL=http://seq:5341
     depends_on:
-      - mongo
-      - kafka
+      mongo:
+        condition: service_started
+      azurite:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
+    networks:
+      - qrfinder-network
+
+  results-worker:
+    build:
+      context: .
+      dockerfile: src/ResultsWorker/Dockerfile
+    platform: linux/amd64
+    environment:
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_GROUP_ID=results-group
+      - SEQ_URL=http://seq:5341
+    depends_on:
+      mongo:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
+    networks:
+      - qrfinder-network
+
+  notifications-worker:
+    build:
+      context: .
+      dockerfile: src/NotificationsWorker/Dockerfile
+    platform: linux/amd64
+    environment:
+      - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_GROUP_ID=notifications-group
+      - SIGNALR_HUB_URL=http://signalr-server:5010/notificationHub
+      - SEQ_URL=http://seq:5341
+    depends_on:
+      mongo:
+        condition: service_started
+      kafka-topics-init:
+        condition: service_completed_successfully
+      signalr-server:
+        condition: service_started
+    networks:
+      - qrfinder-network
+
+  signalr-server:
+    build:
+      context: .
+      dockerfile: src/SignalRServer/Dockerfile
+    platform: linux/amd64
+    container_name: qrfinder-signalr-server
+    ports:
+      - "5010:5010"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:5010
+      - SEQ_URL=http://seq:5341
     networks:
       - qrfinder-network
 
@@ -88,12 +165,12 @@ services:
     image: confluentinc/cp-kafka:7.4.0
     container_name: qrfinder-kafka
     ports:
-      - "5001:9092"
+      - "9092:9092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:5001
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
       KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
@@ -103,22 +180,83 @@ services:
     networks:
       - qrfinder-network
 
-  kafdrop:
-    image: obsidiandynamics/kafdrop:latest
-    container_name: qrfinder-kafdrop
+  kafka-topics-init:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: qrfinder-kafka-topics-init
+    depends_on:
+      - kafka
+    command:
+      - bash
+      - -c
+      - |
+        echo 'Aguardando Kafka inicializar...'
+        while ! kafka-topics --bootstrap-server kafka:29092 --list >/dev/null 2>&1; do
+          echo 'Kafka não está pronto, aguardando...'
+          sleep 5
+        done
+        echo 'Kafka está pronto! Criando tópicos...'
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 5 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 1 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 1 --replication-factor 1
+        echo 'Listando tópicos criados:'
+        kafka-topics --bootstrap-server kafka:29092 --list
+        echo 'Detalhes dos tópicos:'
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic video.analysis.queue
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic video.progress  
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic videos.results
+        kafka-topics --bootstrap-server kafka:29092 --describe --topic video.progress.notifications
+        echo '✅ Todos os tópicos criados!'
+    networks:
+      - qrfinder-network
+    restart: "no"
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: qrfinder-kafka-ui
     ports:
-      - "5004:9000"
+      - "5004:8080"
     environment:
-      KAFKA_BROKERCONNECT: kafka:29092
-      JVM_OPTS: "-Xms32M -Xmx64M"
-      SERVER_SERVLET_CONTEXTPATH: "/"
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     depends_on:
       - kafka
     networks:
       - qrfinder-network
+        
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    container_name: qrfinder-azurite
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    command: "azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --loose --skipApiVersionCheck"
+    volumes:
+      - azurite_data:/data
+    networks:
+      - qrfinder-network
+
+  seq:
+    image: datalust/seq:latest
+    container_name: qrfinder-seq
+    ports:
+      - "5341:80"      # Seq UI
+      - "5342:5341"    # Seq ingestion
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    volumes:
+      - seq_data:/data
+    networks:
+      - qrfinder-network
+
 
 volumes:
   mongo_data:
+  azurite_data:
+  seq_data:
 
 networks:
   qrfinder-network:

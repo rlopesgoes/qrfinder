@@ -1,0 +1,170 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+    
+    - name: Create test video if not exists
+      run: |
+        mkdir -p /home/runner/Downloads
+        if [ ! -f tests/sample-videos/teste.mp4 ]; then
+          # Create a minimal test video using ffmpeg
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          ffmpeg -f lavfi -i testsrc=duration=5:size=320x240:rate=1 -c:v libx264 tests/sample-videos/teste.mp4
+        fi
+        # Copy to expected location for tests
+        cp tests/sample-videos/teste.mp4 /home/runner/Downloads/teste.mp4
+    
+    - name: Restore dependencies
+      run: dotnet restore
+    
+    - name: Build
+      run: dotnet build --no-restore
+    
+    - name: Run Unit Tests
+      run: dotnet test tests/UnitTests/ --no-build --verbosity normal
+    
+    - name: Start application for integration tests
+      run: |
+        # Start the app in background for integration testing
+        cd src/WebApi
+        dotnet run --no-build &
+        echo $! > /tmp/webapi.pid
+        sleep 10  # Wait for app to start
+      env:
+        ASPNETCORE_ENVIRONMENT: Testing
+        ASPNETCORE_URLS: http://localhost:5000
+        MongoDb__ConnectionString: mongodb://localhost:27017/test
+        Kafka__BootstrapServers: localhost:9092
+        BlobStorage__ConnectionString: UseDevelopmentStorage=true
+      continue-on-error: true
+    
+    - name: Run Integration Tests
+      run: |
+        # Update base URL for tests
+        sed -i 's|http://localhost|http://localhost:5000|g' tests/IntegrationTests/SimpleIntegrationTests.cs
+        dotnet test tests/IntegrationTests/ --no-build --verbosity normal
+      continue-on-error: true
+    
+    - name: Stop application
+      run: |
+        if [ -f /tmp/webapi.pid ]; then
+          kill $(cat /tmp/webapi.pid) || true
+        fi
+      if: always()
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Log in to Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ env.REGISTRY }}
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Build and push Docker images
+      run: |
+        # Build all service images
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/webapi:latest -f src/WebApi/Dockerfile .
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/webapp:latest -f src/WebApp/Dockerfile .
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analysis-worker:latest -f src/AnalysisWorker/Dockerfile .
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/results-worker:latest -f src/ResultsWorker/Dockerfile .
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/notifications-worker:latest -f src/NotificationsWorker/Dockerfile .
+        docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/signalr-server:latest -f src/SignalRServer/Dockerfile .
+        
+        # Push all images
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/webapi:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/webapp:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analysis-worker:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/results-worker:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/notifications-worker:latest
+        docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/signalr-server:latest
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Copy files to server
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        key: ${{ secrets.DO_SSH_KEY }}
+        source: "docker-compose.prod.yml,infra/"
+        target: "/tmp/qrfinder/"
+        overwrite: true
+    
+    - name: Deploy to Digital Ocean
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: ${{ secrets.DO_USERNAME }}
+        key: ${{ secrets.DO_SSH_KEY }}
+        script: |
+          # Navigate to app directory
+          cd /opt/qrfinder || { echo "App directory not found"; exit 1; }
+          
+          # Login to GitHub Container Registry
+          echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Pull latest images
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/webapi:latest
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/webapp:latest
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/analysis-worker:latest
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/results-worker:latest
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/notifications-worker:latest
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/signalr-server:latest
+          
+          # Copy production files
+          cp /tmp/qrfinder/docker-compose.prod.yml .
+          cp -r /tmp/qrfinder/infra . || true
+          
+          # Create .env file
+          cat > .env << EOF
+          GITHUB_REPOSITORY=${{ github.repository }}
+          MONGO_PASSWORD=${{ secrets.MONGO_PASSWORD }}
+          AZURE_STORAGE_CONNECTION_STRING=${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}
+          AZURE_STORAGE_CONTAINER_NAME=videos
+          EOF
+          
+          # Stop current containers
+          docker-compose -f docker-compose.prod.yml down || true
+          
+          # Start with new images
+          docker-compose -f docker-compose.prod.yml up -d
+          
+          # Clean up old images
+          docker image prune -f

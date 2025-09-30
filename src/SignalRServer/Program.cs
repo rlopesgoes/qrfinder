@@ -1,0 +1,30 @@
+using Infrastructure;
+using SignalRServer.Hubs;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddObservability();
+
+builder.Services.AddSignalR();
+
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policyBuilder =>
+    {
+        policyBuilder.AllowAnyOrigin()
+                     .AllowAnyHeader()
+                     .AllowAnyMethod();
+    });
+});
+
+var app = builder.Build();
+
+app.UseCors();
+
+app.MapHub<NotificationHub>("/notificationHub");
+
+app.MapGet("/health", () => Results.Ok("SignalR Server is running"));
+
+app.Urls.Add("http://0.0.0.0:5010");
+
+app.Run();

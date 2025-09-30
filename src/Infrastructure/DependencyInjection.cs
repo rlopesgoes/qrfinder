@@ -1,8 +1,8 @@
-using Application.Videos.Ports;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
-using Infrastructure.Implementations;
+using Application.Ports;
+using Infrastructure.Adapters;
+using Infrastructure.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using MongoDB.Driver;
 
 namespace Infrastructure;
@@ -11,90 +11,44 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services)
     {
-        // Application layer services
-        services.AddScoped<IVideoUploader, KafkaVideoUploader>();
-        services.AddScoped<IVideoStatusRepository, VideoStatusRepository>();
-        services.AddScoped<IVideoProcessingRepository, VideoProcessingRepository>();
-        services.AddScoped<IResultsPublisher, Infrastructure.Videos.KafkaResultsPublisher>();
-        services.AddScoped<IVideoChunkStorage, Infrastructure.Videos.FileVideoChunkStorage>();
-        
-        // Domain services (Clean Architecture)
-        services.AddScoped<Domain.Videos.Ports.IQrCodeExtractor, Infrastructure.Videos.QrCodeExtractor>();
-        
-        var bootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS")!;
-        services.AddSingleton<IProducer<string, byte[]>>(_ =>
-            new ProducerBuilder<string, byte[]>(new ProducerConfig 
-            {
-                BootstrapServers = bootstrap, 
-                Acks = Acks.All, 
-                EnableIdempotence = true, 
-                LingerMs = 0,
-                BatchSize = 524288,        // 512 KB (igual ao ChunkSize)
-                
-            }).Build());
-        
-        var config = new AdminClientConfig
+        services.Configure<MongoDbOptions>(options =>
         {
-            BootstrapServers = bootstrap
-        };
-
-        using var adminClient = new AdminClientBuilder(config).Build();
-
-        try
-        {
-            adminClient.CreateTopicsAsync(new TopicSpecification[]
-            {
-                new TopicSpecification
-                {
-                    Name = "videos.control",
-                    NumPartitions = 3,
-                    ReplicationFactor = 1
-                }
-            });
-            
-            adminClient.CreateTopicsAsync(new TopicSpecification[]
-            {
-                new TopicSpecification
-                {
-                    Name = "videos.raw-chunks",
-                    NumPartitions = 3,
-                    ReplicationFactor = 1
-                }
-            });
-            
-            adminClient.CreateTopicsAsync(new TopicSpecification[]
-            {
-                new TopicSpecification
-                {
-                    Name = "videos.results",
-                    NumPartitions = 3,
-                    ReplicationFactor = 1
-                }
-            });
-
-            Console.WriteLine("Tópico criado com sucesso.");
-        }
-        catch (CreateTopicsException e)
-        {
-            if (e.Results[0].Error.Code != ErrorCode.TopicAlreadyExists)
-            {
-                Console.WriteLine($"Erro ao criar tópico: {e.Results[0].Error.Reason}");
-            }
-            else
-            {
-                Console.WriteLine("Tópico já existe.");
-            }
-        }
+            options.ConnectionString = Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING") ?? options.ConnectionString;
+            options.Database = Environment.GetEnvironmentVariable("MONGODB_DATABASE") ?? options.Database;
+        });
         
-        var mongoUser = Environment.GetEnvironmentVariable("MONGODB_USER")!;
-        var mongoPassword = Environment.GetEnvironmentVariable("MONGODB_PASSWORD")!;
-        var mongoHost = Environment.GetEnvironmentVariable("MONGODB_HOST")!;
-        var mongoPort = Environment.GetEnvironmentVariable("MONGODB_PORT")!;
-        var mongoDb = Environment.GetEnvironmentVariable("MONGODB_DB")!;
-        var connectionString = $"mongodb://{mongoUser}:{mongoPassword}@{mongoHost}:{mongoPort}/{mongoDb}?authSource=admin";
-        services.AddSingleton<IMongoClient>(_ => new MongoClient(connectionString));
-        services.AddSingleton(sp => sp.GetRequiredService<IMongoClient>().GetDatabase(mongoDb));
+        services.AddSingleton<IMongoClient>(sp =>
+        {
+            var options = sp.GetRequiredService<IOptions<MongoDbOptions>>();
+            return new MongoClient(options.Value.ConnectionString);
+        });
         
+        services.AddSingleton(sp =>
+        {
+            var mongoClient = sp.GetRequiredService<IMongoClient>();
+            var options = sp.GetRequiredService<IOptions<MongoDbOptions>>();
+            return mongoClient.GetDatabase(options.Value.Database);
+        });
+
+        services.Configure<BlobStorageOptions>(options =>
+        {
+            options.ConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING") ?? options.ConnectionString;
+            options.BaseUrl = Environment.GetEnvironmentVariable("AZURE_STORAGE_BASE_URL") ?? options.BaseUrl;
+        });
+        
+        services.AddScoped<IStatusReadOnlyRepository, StatusReadOnlyRepository>();
+        services.AddScoped<IStatusWriteOnlyRepository, StatusWriteOnlyRepository>();
+        services.AddScoped<IAnalysisResultReadOnlyRepository, AnalysisResultReadOnlyRepository>();
+        services.AddScoped<IAnalysisResultWriteOnlyRepository, AnalysisResultWriteOnlyRepository>();
+        services.AddScoped<IResultsPublisher, KafkaResultsPublisher>();
+        services.AddScoped<IProgressNotifier, KafkaProgressNotifier>();
+        services.AddScoped<IVideosReadOnlyRepository, VideosReadOnlyRepository>();
+        services.AddScoped<IVideosWriteOnlyRepository, VideosWriteOnlyRepository>();
+        services.AddScoped<IQrCodeScanner, QrCodeScannerWithFFmpeg>();
+        services.AddScoped<IUploadLinkGenerator, UploadLinkGenerator>();
+        services.AddScoped<IVideoAnalysisQueue, KafkaVideoAnalysisQueue>();
+        services.AddScoped<INotificationChannel, SignalRServerChannel>();
+
         return services;
     }
 }

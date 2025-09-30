@@ -189,7 +189,7 @@ services:
           sleep 5
         done
         echo 'Kafka está pronto! Criando tópicos...'
-        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 3 --replication-factor 1
+        kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.analysis.queue --partitions 5 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress --partitions 1 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic videos.results --partitions 1 --replication-factor 1
         kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic video.progress.notifications --partitions 1 --replication-factor 1

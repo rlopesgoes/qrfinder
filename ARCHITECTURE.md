@@ -33,7 +33,7 @@ O QrFinder implementa uma arquitetura de microserviços, com processamento assí
 **Configuração:**
 ```yaml
 Topics:
-  - video.analysis.queue: 3 partições (1:1 com workers). Pode ser aumentado.
+  - video.analysis.queue: 5 partições (1:1 com workers). Escalável até 5 workers paralelos.
   - video.progress: 1 partição (atualizações de status)
   - videos.results: 1 partição (resultados finais)
   - video.progress.notifications: 1 partição (notificações)
@@ -105,7 +105,7 @@ Topics:
 
 **Implementação:**
 - **Horizontal Scaling:** Todos os serviços podem ser escalados independentemente
-- **Particionamento Kafka:** 3 partições para análise permitem 3 workers paralelos
+- **Particionamento Kafka:** 5 partições para análise permitem até 5 workers paralelos
 - **Stateless Services:** APIs sem estado permitem replicação simples
 - **Load Balancer:** Nginx distribui carga automaticamente
 
@@ -114,10 +114,10 @@ Topics:
 # Básico: 1 API + 1 Worker
 make demo-basic
 
-# Escalado: 3 APIs + 3 Workers
+# Escalado: 5 APIs + 5 Workers
 make demo-scaled
 
-# Customizado: Até 5 APIs + 5 Workers
+# Customizado: Configuração máxima
 make scale-all API=5 ANALYSIS=5
 ```
 
@@ -204,7 +204,7 @@ make demo-scaled   # 3 APIs + 3 workers para alta performance
 
 ### 7.2 Configurações de Performance
 - **Workers Analysis:** Configurados para 1 vídeo por vez (evita travamentos)
-- **Partições Kafka:** 3 partições para processamento paralelo otimizado
+- **Partições Kafka:** 5 partições para processamento paralelo otimizado
 - **Health Checks:** Remoção automática de instâncias não responsivas
 - **Timeouts:** Otimizados para operações de longa duração
 

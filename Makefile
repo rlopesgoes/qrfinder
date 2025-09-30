@@ -118,16 +118,16 @@ demo-basic: ## 🚀 Demo básico: 1 instância de cada serviço
 	@echo "  • 📊 Kafka UI: http://localhost:5004"
 	@echo "  • 🗄️ Mongo Express: http://localhost:5005 (admin/admin123)"
 
-demo-scaled: ## 🔥 Demo escalado: 3 APIs + 3 Analysis Workers + 1 Results + 1 Notifications
+demo-scaled: ## 🔥 Demo escalado: 5 APIs + 5 Analysis Workers + 1 Results + 1 Notifications
 	@echo "$(GREEN)🔥 Subindo ambiente escalado...$(NC)"
-	@echo "$(YELLOW)📈 Configuração: 3 APIs, 3 Analysis (3 threads), 1 Results, 1 Notifications$(NC)"
+	@echo "$(YELLOW)📈 Configuração: 5 APIs, 5 Analysis (5 threads), 1 Results, 1 Notifications$(NC)"
 	@$(COMPOSE) down
-	@$(COMPOSE) up -d --scale webapi=3 --scale analysis-worker=3 --scale results-worker=1 --scale notifications-worker=1
+	@$(COMPOSE) up -d --scale webapi=5 --scale analysis-worker=5 --scale results-worker=1 --scale notifications-worker=1
 	@echo "$(GREEN)✅ Ambiente escalado rodando!$(NC)"
 	@echo "$(YELLOW)🎬 WebApp (Upload UI): http://localhost/app$(NC)"
 	@echo "$(YELLOW)📊 Load Balancer (Nginx): http://localhost$(NC)"
 	@echo "$(YELLOW)📋 Swagger: http://localhost/swagger/index.html$(NC)"
-	@echo "$(YELLOW)⚡ 3 APIs + 3 workers processando em paralelo$(NC)"
+	@echo "$(YELLOW)⚡ 5 APIs + 5 workers processando em paralelo$(NC)"
 
 # Comandos de escala manual
 scale-all: ## Escala todos os serviços (uso: make scale-all API=3 ANALYSIS=5 RESULTS=2 NOTIFICATIONS=2)
@@ -229,7 +229,7 @@ examples: ## Mostra exemplos de uso
 	@echo "$(YELLOW)2. Demo básico (1 réplica):$(NC)"
 	@echo "   make demo-basic"
 	@echo ""
-	@echo "$(YELLOW)3. Demo escalado (10 workers):$(NC)"
+	@echo "$(YELLOW)3. Demo escalado (5 APIs + 5 workers):$(NC)"
 	@echo "   make demo-scaled"
 	@echo ""
 	@echo "$(YELLOW)4. Upload de vídeo:$(NC)"

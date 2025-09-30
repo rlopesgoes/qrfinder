@@ -23,10 +23,12 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
       - AZURE_STORAGE_BASE_URL=http://localhost:10000
+      - SEQ_URL=http://seq:5341
     depends_on:
       - mongo
       - kafka
       - azurite
+      - seq
     networks:
       - qrfinder-network
 
@@ -55,6 +57,7 @@ services:
       - AZURE_STORAGE_CONNECTION_STRING=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;
       - AZURE_STORAGE_BASE_URL=http://azurite:10000
       - AnalysisWorker__MaxConcurrency=1
+      - SEQ_URL=http://seq:5341
     depends_on:
       mongo:
         condition: service_started
@@ -74,6 +77,7 @@ services:
       - MONGODB_CONNECTION_STRING=mongodb://admin:password123@mongo:27017/qrfinder?authSource=admin
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_GROUP_ID=results-group
+      - SEQ_URL=http://seq:5341
     depends_on:
       mongo:
         condition: service_started
@@ -92,6 +96,7 @@ services:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - KAFKA_GROUP_ID=notifications-group
       - SIGNALR_HUB_URL=http://signalr-server:5010/notificationHub
+      - SEQ_URL=http://seq:5341
     depends_on:
       mongo:
         condition: service_started
@@ -113,6 +118,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:5010
+      - SEQ_URL=http://seq:5341
     networks:
       - qrfinder-network
 
@@ -232,10 +238,25 @@ services:
     networks:
       - qrfinder-network
 
+  seq:
+    image: datalust/seq:latest
+    container_name: qrfinder-seq
+    ports:
+      - "5341:80"      # Seq UI
+      - "5342:5341"    # Seq ingestion
+    environment:
+      - ACCEPT_EULA=Y
+      - SEQ_FIRSTRUN_NOAUTHENTICATION=true
+    volumes:
+      - seq_data:/data
+    networks:
+      - qrfinder-network
+
 
 volumes:
   mongo_data:
   azurite_data:
+  seq_data:
 
 networks:
   qrfinder-network:

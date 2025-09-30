@@ -117,6 +117,7 @@ demo-basic: ## 🚀 Demo básico: 1 instância de cada serviço
 	@echo "  • 📋 Swagger: http://localhost/swagger/index.html"
 	@echo "  • 📊 Kafka UI: http://localhost:5004"
 	@echo "  • 🗄️ Mongo Express: http://localhost:5005 (admin/admin123)"
+	@echo "  • 📝 Seq Logs: http://localhost:5341"
 
 demo-scaled: ## 🔥 Demo escalado: 5 APIs + 5 Analysis Workers + 1 Results + 1 Notifications
 	@echo "$(GREEN)🔥 Subindo ambiente escalado...$(NC)"

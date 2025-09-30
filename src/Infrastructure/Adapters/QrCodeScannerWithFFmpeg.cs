@@ -18,7 +18,7 @@ public class QrCodeScannerWithFFmpeg : IQrCodeScanner
     private const double FrameInterval = 0.2;
     
     private static string BuildTemporaryVideoFileName(string videoId)
-        => Path.Combine(TempDirectory, $"{videoId}.bin");
+        => Path.Combine(TempDirectory, $"{videoId}.mp4");
     
     public async Task<Result<QrCodes>> ScanAsync(Video video, CancellationToken cancellationToken = default)
     {
@@ -182,27 +182,26 @@ public class QrCodeScannerWithFFmpeg : IQrCodeScanner
         if (image is null) return null;
 
         var reader = CreateQrCodeReader();
-        
+
+        // Try single decode first
         var result = reader.Decode(ConvertToLuminanceSource(image));
-        if (result is not null)
-            return result;
-        
+        if (result != null) return result;
+
+        // Try decode multiple (if available)
+        try
+        {
+            var results = reader.DecodeMultiple(ConvertToLuminanceSource(image));
+            if (results != null && results.Length > 0)
+                return results[0]; // ou processar todos
+        }
+        catch { /* some bindings may not support DecodeMultiple */ }
+
+        // rest of your attempts
         result = TryScaledDecoding(reader, image);
-        if (result is not null)
-            return result;
-        
-        result = TryInvertedDecoding(reader, image);
-        if (result is not null) 
-            return result;
-        
-        result = TryHighContrastDecoding(reader, image);
-        if (result is not null)
-            return result;
-        
-        result = TryBinarizedDecoding(reader, image);
-        
+        // ...
         return result;
     }
+
 
     private static BarcodeReaderGeneric CreateQrCodeReader() =>
         new()
@@ -279,23 +278,31 @@ public class QrCodeScannerWithFFmpeg : IQrCodeScanner
     {
         var width = image.Width;
         var height = image.Height;
-        var luminance = new byte[width * height];
+
+        // buffer RGB 24bpp: 3 bytes por pixel (R, G, B)
+        var rgb = new byte[width * height * 3];
 
         image.ProcessPixelRows(accessor =>
         {
-            for (var y = 0; y < height; y++)
+            for (int y = 0; y < height; y++)
             {
                 var row = accessor.GetRowSpan(y);
-                for (var x = 0; x < width; x++)
+                int rowOffset = y * width * 3; // deslocamento em bytes para esta linha
+
+                for (int x = 0; x < width; x++)
                 {
-                    var pixel = row[x];
-                    // Convert RGB to grayscale using standard formula
-                    var gray = (byte)(0.299 * pixel.R + 0.587 * pixel.G + 0.114 * pixel.B);
-                    luminance[y * width + x] = gray;
+                    var p = row[x];
+                    int i = rowOffset + x * 3;
+                    rgb[i + 0] = p.R;
+                    rgb[i + 1] = p.G;
+                    rgb[i + 2] = p.B;
                 }
             }
         });
 
-        return new RGBLuminanceSource(luminance, width, height);
+        // Construtor que aceita byte[] RGB24
+        return new ZXing.RGBLuminanceSource(rgb, width, height);
     }
+
+
 }
